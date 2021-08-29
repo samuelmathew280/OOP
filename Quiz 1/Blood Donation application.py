@@ -57,6 +57,7 @@ class Admin:
                 j+=1
         else:
             print("No matching donors.")
+        print('\n')
 
     def assignPendingRequest(self):
         if len(pending_requests) == 0:
@@ -91,7 +92,7 @@ class Admin:
                         if request['User'] != i:
                             print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood Group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(j, i))
                         j+=1
-                    n = int(input("Pick the donor to assign the request to (BE CAREFUL TO SEND THE REQUEST TO SOMEONE WITH MATCHING BLOOD TYPE ELSE IT WILL BE REJECTED): "))
+                    n = int(input("Pick the donor to assign the request to (BE CAREFUL TO SEND THE REQUEST TO SOMEONE WITH COMPATIBLE BLOOD TYPE ELSE IT WILL BE REJECTED): "))
                     registered_donors[n-1].urgent_request.append(request)
                     print("Request successfully sent to the donor!\n")
                     pending_requests.remove(request)
@@ -219,6 +220,7 @@ def searchBloodBank():
             flag = 1
     if flag == 0:
         print("None in database.")
+    print('\n')
 
 def searchDonorsByCity():
     if len(registered_donors) == 0:
@@ -232,6 +234,7 @@ def searchDonorsByCity():
             flag = 1
     if flag == 0:
         print("None in database.")
+    print('\n')
 
 def searchDonorsByBloodType():
     if len(registered_donors) == 0:
@@ -245,7 +248,31 @@ def searchDonorsByBloodType():
             flag = 1
     if flag == 0:
         print("None in database.")
+    print('\n')
 
+#####################################################
+##                EXISTING DATABASE                ##
+#####################################################
+# Admin(name, ID)
+admin1 = Admin('Samuel', 1)
+admin2 = Admin('Shaunak', 2)
+admins.append(admin1)
+admins.append(admin2)
+
+# User(name, age, sex, address, city, blood_group, donor, Aadhaar_num, contact_number)
+user1 = User('Rakesh', 19, 'M', 'C-21, Cloud 9, Sector 11, Vashi', 'Navi Mumbai', 'O-', True, 5134234511991456, 9322382911)
+user2 = User('Samir', 27, 'M', '1, Swaraj Towers, Sector 2, Nerul', 'Navi Mumbai', 'O+', True, 1734324501851456, 9706382943)
+user3 = User('Abby', 23, 'F', 'B-102, Atlantis, Sector 14, Powai', 'Mumbai', 'A-', True, 6514324585351456, 9294852943)
+user4 = User('Kavya', 21, 'F', "J-42, Queen's Crown, Sector 1, Nanded", 'Pune', 'AB+', False, 3859424585301856, 9213892943)     #Not a donor
+user5 = User('Alex', 35, 'M', "Flat 2, Priyadarshani, Sector 4, Aundh", 'Pune', 'B+', False, 1038524585351456, 9810395943)      #Not a donor
+registered_donors.append(user1)
+registered_donors.append(user2)
+registered_donors.append(user3)
+registered_users.append(user1)
+registered_users.append(user2)
+registered_users.append(user3)
+registered_users.append(user4)
+registered_users.append(user5)
 
 #####################################################
 ##                  MAIN PROGRAM                   ##
@@ -295,7 +322,10 @@ while(1):
         if verification == True:
             user = i
             while(1):
-                n = int(input("Welcome! What do you want to do now?\n1. Place a blood group request\n2. View requests to donate blood (if you're a donor)\n3. View donation history\n4. Exit to main screen\n"))
+                if user.donor == True:
+                    n = int(input("Welcome! What do you want to do now?\n1. Place a blood group request\n2. View requests to donate blood ({0})\n3. View donation history\n4. Exit to main screen\n".format(len(user.urgent_request))))
+                else:
+                    n = int(input("Welcome! What do you want to do now?\n1. Place a blood group request\n2. View requests to donate blood (for donors)\n3. View donation history\n4. Exit to main screen\n"))
                 if n == 1:
                     user.placeRequest()
                 elif n == 2:
@@ -330,7 +360,7 @@ while(1):
 
     elif n == 5:
         while 1:
-            n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n4. Search donors by blood type\n5.Go back to main menu\n"))       
+            n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n4. Search donors by blood type\n5. Go back to main menu\n"))       
             if n == 1:                          #Differentiated by cities, hence branches are classified
                 listRareBloodGroups()
             elif n == 2:
