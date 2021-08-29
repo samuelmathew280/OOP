@@ -144,13 +144,14 @@ class User:
 
     def donationHistory(self):
         k = 1
-        if len(self.blood_donated_to)> 0:
-            print("Donated blood to: ")
-            for i in self.blood_donated_to:
-                print("{0}. Name = '{1.name}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
-                k+=1
-        else:
-            print("Didn't donate blood yet.")
+        if self.donor == True:
+            if len(self.blood_donated_to)> 0:
+                print("Donated blood to: ")
+                for i in self.blood_donated_to:
+                    print("{0}. Name = '{1.name}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
+                    k+=1
+            else:
+                print("Didn't donate blood yet.")
         print('\n')
         k = 1
         if len(self.received_blood_by)> 0:
@@ -207,7 +208,7 @@ def searchBloodBank():
     flag = 0
     for i in blood_banks:
         if blood_type in i['av_types']:
-            print("Name = '{0}', Available blood types = '{1}', Address = '{2}', City = '{3}'".format(i['name'], i['av_types'], i['address']), i['city'])
+            print("Name = '{0}', Available blood types = {1}, Address = '{2}', City = '{3}'".format(i['name'], i['av_types'], i['address'], i['city']))
             flag = 1
     if flag == 0:
         print("None in database.")
