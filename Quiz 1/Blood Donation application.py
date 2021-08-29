@@ -1,3 +1,6 @@
+from datetime import datetime
+from datetime import date
+from dateutil import relativedelta as rdelta
 #INITIALIZING DATABASE VARIABLES
 admins = []
 registered_users = []
@@ -6,6 +9,7 @@ blood_banks = []
 pending_requests = []
 #PRE-DEFINED GLOBAL VARIABLES
 rare_groups = ['O-', 'A-', 'B-', 'AB+', 'AB-']
+start_time = datetime.utcnow()
 
 #####################################################
 ##                    MODULES                      ##
@@ -65,7 +69,7 @@ class Admin:
         else:
             j = 1
             for i in pending_requests:
-                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', City = '{1.city}', Requested blood type = '{2}'".format(j, i['User'], i['Bg_req']))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', City = '{1.city}', Requested blood type = '{2}', Date = {3}".format(j, i['User'], i['Bg_req'], i['Date']))
                 j+=1
             n = int(input('Enter the number to deal with a particular request. Enter 0 to return to previous menu.\n'))
             if n != 0:
@@ -97,6 +101,34 @@ class Admin:
                     print("Request successfully sent to the donor!\n")
                     pending_requests.remove(request)
 
+    def CollectBloodSample(self):
+        time_now = datetime.utcnow()
+        global start_time
+        time_passed = rdelta.relativedelta(time_now, start_time)
+        if time_passed.minutes >= 1:                #1 Day in app = 1 minute in real life
+            if len(blood_banks) > 0:
+                for i in blood_banks:
+                    if i['type'] == 2:
+                        continue
+                    print("Update available blood samples for '{0}'".format(i['name']))
+                    blood_types = []
+                    while(1):
+                        k = input('Input available blood types, one at a time. (eg. O+ or AB-). Press 1 to escape if finished or not applicable. ')
+                        if k == '1':
+                            if len(blood_types) == 0:
+                                print("At least enter one available blood type.")
+                                continue
+                            break
+                        else:
+                            blood_types.append(k)
+                    i['av_types'] = blood_types
+                    print("\nAvailable blood types for the hospital has been successfully updated!\n")
+            else:
+                print("Currently there are no blood banks in the database.\n")
+            start_time = time_now
+        else:
+            print("A day has not passed yet. Come back tomorrow to input the blood samples for the different blood banks.\n")
+
 #______________________USER________________________#
 class User:
     def __init__(self, name, age, sex, address, city, blood_group, donor, Aadhaar_num, contact_number):
@@ -121,9 +153,11 @@ class User:
             urgent = True
         else:
             urgent = False
+        date = input("What is the date as of placing this request? (DD-MM-YYYY)\n")
         request = {'User': self,
                    'Urgent' : urgent,
-                   'Bg_req' : blood_type}
+                   'Bg_req' : blood_type,
+                   'Date' : date}
         global pending_requests
         pending_requests.append(request)
         print("The request has been recorded. You will be contacted soon.\n")
@@ -132,7 +166,7 @@ class User:
         if len(self.urgent_request) > 0:
             j = 1
             for request in self.urgent_request:
-                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood group required = '{2}', Address = '{1.address}'".format(j, request['User'], request['Bg_req']))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood group required = '{2}', Address = '{1.address}', Date = {3}".format(j, request['User'], request['Bg_req'], request['Date']))
                 j+=1
             k = int(input("\nWhat action do you want to take?\n1. Accept request\n2. Reject request\n3. Go back to menu (enter any number)\n"))
             if k == 1:
@@ -181,7 +215,7 @@ def compareLists(list1, list2):             #Compare to see if two lists have a 
                 return True
     return False
 
-def listRareBloodGroups():
+def listRareBloodGroupsByBranch():
     if len(blood_banks) == 0:
         print("No blood banks in the data yet. An admin needs to add them.\n")
         return
@@ -250,6 +284,16 @@ def searchDonorsByBloodType():
         print("None in database.")
     print('\n')
 
+def listRareBloodGroupsByDonors():
+    flag = 0
+    for i in registered_donors:
+        if i.blood_group in rare_groups:
+            print("Name = '{0.name}', Age = '{0.age}', Sex = '{0.sex}', Blood group = '{0.blood_group}'".format(i))
+            flag = 1
+    if flag == 0:
+        print("None in database.")
+    print('\n')
+
 #####################################################
 ##                EXISTING DATABASE                ##
 #####################################################
@@ -291,7 +335,7 @@ while(1):
         if verification == True:
             admin = i
             while(1):
-                n = int(input("Welcome! If this is your first time logging-in, kindly input all the hospitals into the database and then proceed with the other options.\nWhat do you want to do now?\n1. Add a new hospital/blood donation camp.\n2. View list of donors of a particular area (branch).\n3. Check blood requests. ({0})\n4. Exit to main screen\n".format(len(pending_requests))))
+                n = int(input("Welcome! If this is your first time logging-in, kindly input all the hospitals into the database and then proceed with the other options.\nWhat do you want to do now?\n1. Add a new hospital/blood donation camp.\n2. View list of donors of a particular area (branch).\n3. Check blood requests. ({0})\n4. Update blood banks' available samples (to be done daily)\n5. Exit to main screen\n".format(len(pending_requests))))
                 if n == 1:
                     admin.AddBloodBank()
                 elif n == 2:
@@ -299,6 +343,8 @@ while(1):
                 elif n == 3:
                     admin.assignPendingRequest()
                 elif n == 4:
+                    admin.CollectBloodSample()
+                elif n == 5:
                     break
                 else:
                     print("Invalid entry\n")
@@ -360,9 +406,9 @@ while(1):
 
     elif n == 5:
         while 1:
-            n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n4. Search donors by blood type\n5. Go back to main menu\n"))       
+            n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n4. Search donors by blood type\n5. List donors with rare blood types\n6. Go back to main menu\n"))       
             if n == 1:                          #Differentiated by cities, hence branches are classified
-                listRareBloodGroups()
+                listRareBloodGroupsByBranch()
             elif n == 2:
                 searchBloodBank()
             elif n == 3:
@@ -370,6 +416,8 @@ while(1):
             elif n == 4:
                 searchDonorsByBloodType()
             elif n == 5:
+                listRareBloodGroupsByDonors()
+            elif n == 6:
                 break
             else:
                 print("Invalid entry. Try again.\n")

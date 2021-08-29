@@ -1,5 +1,8 @@
 The blood donation app has 2 sets of users: Admins and Users.
 Admins are responsible for inputting the hospital/blood donation camp details at the start of the program.
+Admins also have to update the available blood samples at each blood bank, every day.
+1 day in-app = 1 minute in our real time.
+
 Once a user is registered, they can place a request for a particular type of blood.
 A request is considered "urgent", if the blood type requested is rare.
 These requests by users will be visible to the admin, on loggin-in to the admin portal.
