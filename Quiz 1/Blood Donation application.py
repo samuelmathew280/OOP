@@ -12,6 +12,7 @@ rare_groups = ['O-', 'A-', 'B-', 'AB+', 'AB-']
 #####################################################
 ##                     MODULES                     ##
 #####################################################
+#______________________ADMIN________________________#
 class Admin:
     def __init__(self, name, ID):
         self.name = name
@@ -97,6 +98,7 @@ class Admin:
                     print("Request successfully sent to the donor!\n")
                     pending_requests.remove(request)
 
+#______________________USER________________________#
 class User:
     def __init__(self, name, age, sex, address, city, blood_group, donor, Aadhaar_num, contact_number):
         self.name = name
