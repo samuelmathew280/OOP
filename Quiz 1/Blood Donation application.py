@@ -1,5 +1,3 @@
-import re
-from typing import AsyncGenerator
 #INITIALIZING DATABASE VARIABLES
 admins = []
 registered_users = []
