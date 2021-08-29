@@ -1,4 +1,5 @@
 import re
+from typing import AsyncGenerator
 #INITIALIZING DATABASE VARIABLES
 admins = []
 registered_users = []
@@ -53,7 +54,7 @@ class Admin:
         j = 1
         if len(eligibleDonors) > 0:
             for i in eligibleDonors:
-                print("{0}. Name = '{1}', Blood Group = '{2}', Address = '{3}', City = '{4}'".format(j, i.name, i.blood_group, i.address, i.city))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood Group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(j, i))
                 j+=1
         else:
             print("No matching donors.")
@@ -64,7 +65,7 @@ class Admin:
         else:
             j = 1
             for i in pending_requests:
-                print("{0}. Name = '{1.name}', City = '{1.city}', Requested blood type = '{2}'".format(j, i['User'], i['Bg_req']))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', City = '{1.city}', Requested blood type = '{2}'".format(j, i['User'], i['Bg_req']))
                 j+=1
             n = int(input('Enter the number to deal with a particular request. Enter 0 to return to previous menu.\n'))
             if n != 0:
@@ -82,10 +83,14 @@ class Admin:
                 else:                                                           #SEND DIRECTLY TO A DONOR IF REQUEST IS URGENT
                     j=1
                     if len(registered_donors) == 0:
-                        print("There are no registered donors in the database. Wait for a donor to register to send the request to.")
+                        print("There are no registered donors in the database. Wait for a donor to register to send the request to.\n")
+                        return
+                    elif len(registered_donors) == 1 and request['User'].donor == True:
+                        print("There are no registered donors in the database. Wait for a donor to register to send the request to.\n")
+                        return
                     for i in registered_donors:
                         if request['User'] != i:
-                            print("{0}. Name = '{1}', Blood Group = '{2}', Address = '{3}', City = '{4}'".format(j, i.name, i.blood_group, i.address, i.city))
+                            print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood Group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(j, i))
                         j+=1
                     n = int(input("Pick the donor to assign the request to (BE CAREFUL TO SEND THE REQUEST TO SOMEONE WITH MATCHING BLOOD TYPE ELSE IT WILL BE REJECTED): "))
                     registered_donors[n-1].urgent_request.append(request)
@@ -93,8 +98,10 @@ class Admin:
                     pending_requests.remove(request)
 
 class User:
-    def __init__(self, name, address, city, blood_group, donor, Aadhaar_num, contact_number):
+    def __init__(self, name, age, sex, address, city, blood_group, donor, Aadhaar_num, contact_number):
         self.name = name
+        self.age = age 
+        self.sex = sex
         self.address = address
         self.city = city
         self.blood_group = blood_group
@@ -124,7 +131,7 @@ class User:
         if len(self.urgent_request) > 0:
             j = 1
             for request in self.urgent_request:
-                print("{0}. Name = '{1.name}', Blood group required = '{2}', Address = '{1.address}'".format(j, request['User'], request['Bg_req']))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood group required = '{2}', Address = '{1.address}'".format(j, request['User'], request['Bg_req']))
                 j+=1
             k = int(input("\nWhat action do you want to take?\n1. Accept request\n2. Reject request\n3. Go back to menu (enter any number)\n"))
             if k == 1:
@@ -148,7 +155,7 @@ class User:
             if len(self.blood_donated_to)> 0:
                 print("Donated blood to: ")
                 for i in self.blood_donated_to:
-                    print("{0}. Name = '{1.name}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
+                    print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
                     k+=1
             else:
                 print("Didn't donate blood yet.")
@@ -157,7 +164,7 @@ class User:
         if len(self.received_blood_by)> 0:
             print("Received blood from: ")
             for i in self.received_blood_by:
-                print("{0}. Name = '{1.name}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
+                print("{0}. Name = '{1.name}', Age = '{1.age}', Sex = '{1.sex}', Blood group = '{1.blood_group}', Address = '{1.address}', City = '{1.city}'".format(k, i))
                 k+=1
         else:
             print("Haven't received blood from anyone.")
@@ -221,7 +228,7 @@ def searchDonors():
     flag = 0
     for i in registered_donors:
         if i.city == city:
-            print("Name = '{0.name}', Blood group = '{0.blood_group}', Contact No. = '{0.contact_number}'".format(i))
+            print("Name = '{0.name}', Age = '{0.age}', Sex = '{0.sex}', Blood group = '{0.blood_group}'".format(i))
             flag = 1
     if flag == 0:
         print("None in database.")
@@ -289,6 +296,8 @@ while(1):
             print("You are not a registered user. Kindly register yourself first.\n")
     elif n == 4:
         name = input("Enter your name: ")
+        age = int(input("Enter your age: "))
+        sex = input("Enter your sex (M/F): ")
         address = input("Enter your full address: ")
         city = input("Enter your city: ")
         blood_group = input("Enter your blood group: ")
@@ -299,7 +308,7 @@ while(1):
             donorBool = False
         aadhaar_num = int(input("Enter your Aadhaar number: "))
         contact_num = int(input("Enter your contact number: "))
-        user = User(name, address, city, blood_group, donorBool, aadhaar_num, contact_num)
+        user = User(name, age, sex, address, city, blood_group, donorBool, aadhaar_num, contact_num)
         registered_users.append(user)
         if donorBool == True:
             registered_donors.append(user)
