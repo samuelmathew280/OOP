@@ -220,7 +220,7 @@ def searchBloodBank():
     if flag == 0:
         print("None in database.")
 
-def searchDonors():
+def searchDonorsByCity():
     if len(registered_donors) == 0:
         print("No registered donors in the data yet. Users need to register as one.\n")
         return
@@ -232,6 +232,20 @@ def searchDonors():
             flag = 1
     if flag == 0:
         print("None in database.")
+
+def searchDonorsByBloodType():
+    if len(registered_donors) == 0:
+        print("No registered donors in the data yet. Users need to register as one.\n")
+        return
+    blood_type = input("Enter the blood type of donors you want to be searched: ")
+    flag = 0
+    for i in registered_donors:
+        if i.blood_group == blood_type:
+            print("Name = '{0.name}', Age = '{0.age}', Sex = '{0.sex}', Blood group = '{0.blood_group}'".format(i))
+            flag = 1
+    if flag == 0:
+        print("None in database.")
+
 
 #####################################################
 ##                  MAIN PROGRAM                   ##
@@ -260,7 +274,7 @@ while(1):
                 elif n == 4:
                     break
                 else:
-                    print("Invalid entry")
+                    print("Invalid entry\n")
         else:
             print("You are not a registered admin.\nKindly register yourself first.\n")
     elif n == 2:
@@ -291,7 +305,7 @@ while(1):
                 elif n == 4:
                     break
                 else:
-                    print("Invalid entry.")
+                    print("Invalid entry.\n")
         else:
             print("You are not a registered user. Kindly register yourself first.\n")
     elif n == 4:
@@ -315,16 +329,23 @@ while(1):
         print("You have been registerd as a user. Use your name to log-in.\n")
 
     elif n == 5:
-        n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n"))       
-        if n == 1:                          #Differentiated by cities, hence branches are classified
-            listRareBloodGroups()
-        elif n == 2:
-            searchBloodBank()
-        elif n == 3:
-            searchDonors()
+        while 1:
+            n = int(input("1. Get blood banks with rare blood groups (city-wise)\n2. Search blood banks by blood group\n3. Search donors in your city\n4. Search donors by blood type\n5.Go back to main menu\n"))       
+            if n == 1:                          #Differentiated by cities, hence branches are classified
+                listRareBloodGroups()
+            elif n == 2:
+                searchBloodBank()
+            elif n == 3:
+                searchDonorsByCity()
+            elif n == 4:
+                searchDonorsByBloodType()
+            elif n == 5:
+                break
+            else:
+                print("Invalid entry. Try again.\n")
 
     elif n == 6:
         exit(1)
 
     else:
-        print("Invalid entry.")
+        print("Invalid entry.\n")
