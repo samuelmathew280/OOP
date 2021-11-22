@@ -87,7 +87,7 @@ class MyClient(commands.Bot):
         teachers = teacher.members
         global serverInfo
         serverInfo = [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        self.add_cog(events.onEvents(client, serverInfo))
+        self.add_cog(events.onEvents(client, myDB, myCursor, serverInfo))
         self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor, serverInfo))
         self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor, serverInfo))
         self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor, serverInfo))

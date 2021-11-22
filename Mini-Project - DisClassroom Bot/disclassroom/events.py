@@ -6,8 +6,10 @@ from discord.ext.commands import *
 from variables import *
 #______________________________ON EVENT_____________________________#
 class onEvents(commands.Cog):
-    def __init__(self, client, serverInfo):
+    def __init__(self, client, myDB, myCursor, serverInfo):
         self.client = client
+        self.myDB = myDB
+        self.myCursor = myCursor
         # [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
         # [0,      1,            2,               3,                   4,       5,       6,        7]
         self.serverInfo = serverInfo
@@ -45,4 +47,14 @@ class onEvents(commands.Cog):
                 await member.kick()
         elif reaction.emoji == '2️⃣':
             await member.add_roles(self.serverInfo[4])
+            # Add new students joining the server to all assignments that are still due
+            self.myCursor.execute("SELECT assignmentID FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
+            dueAssignments = self.myCursor.fetchall()
+            for i in dueAssignments:
+                tableName = "assgn" + str(i[0])
+                self.myCursor.execute("SELECT studentID FROM {0} WHERE studentID = {1}".format(tableName, member.id))
+                record = self.myCursor.fetchone()
+                if record is None:
+                    self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
+                    self.myDB.commit()
         await welcomeMessage.delete()
