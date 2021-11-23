@@ -20,6 +20,33 @@ class teacherCommands(commands.Cog):
         # [0,      1,            2,               3,                   4,       5,       6,        7]
         self.serverInfo = serverInfo
 
+    @commands.command(name='info', aliases = ['i'])
+    @commands.has_any_role(int(teacherID))
+    async def info(self, ctx, arg):
+        ID = re.sub("[^0-9]", "", arg)
+        try:
+            member = await ctx.guild.fetch_member(int(ID))
+        except:
+            embed = discord.Embed(description="Student not found.",
+                          color=red)
+            await ctx.send(embed=embed)
+            return
+        if getRole(ctx.guild, studentID) not in member.roles:
+            embed = discord.Embed(description="User is not a student.",
+                          color=red)
+            await ctx.send(embed=embed)
+            return
+        self.myCursor.execute("SELECT * FROM students WHERE studentID = '{0}' AND serverID = {1}".format(ID, ctx.guild.id))
+        record = self.myCursor.fetchone()
+        embed = discord.Embed(title =  ":man_in_tuxedo: Student information", color = default_color)
+        embed.set_thumbnail(url=member.avatar_url)
+        embed.add_field(name="Name", value=record[0], inline=True)
+        embed.add_field(name="Username", value="{0} | `".format(member.mention) + record[1] + '`', inline=True)
+        embed.add_field(name="ID", value=str(record[2]), inline=True)
+        embed.add_field(name="Roll number", value=record[4], inline=True)
+        embed.add_field(name="Email", value=record[5], inline=True)
+        await ctx.send(embed=embed)
+
     # Utility function to add assignment to database when "c!post assignment" is invoked
     async def addAssignment(self, subject, title, ctx, deadline):
         #####################################################
