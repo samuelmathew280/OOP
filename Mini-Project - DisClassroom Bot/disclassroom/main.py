@@ -43,17 +43,6 @@ myCursor = myDB.cursor(buffered=True)   # The buffered = True is required becaus
                                         # Meaning, that there are still (n-1) results that were loading which weren't read
                                         # This problem is solved with a buffered cursor that loads ALL the rows behind the scenes, but only takes one from the connector, so MySQL won't show an error
 
-#_______________________UTILITY FUNCTIONS_______________________#
-def getChannel(arg):                    #PASS CHANNEL MENTION STRING, GET CHANNEL OBJECT
-    channel_id = re.sub("[^0-9]", "", arg)
-    channel = client.get_channel(int(channel_id))
-    return channel
-
-def getRole(guild, arg):                #PASS CHANNEL MENTION STRING, GET CHANNEL OBJECT
-    role_id = re.sub("[^0-9]", "", arg)
-    role = guild.get_role(int(role_id))
-    return role
-
 #__________________________ON STARTUP__________________________#
 class MyClient(commands.Bot):
     def __init__(self, command_prefix, help_command, *args, **kwargs):
@@ -69,28 +58,10 @@ class MyClient(commands.Bot):
 
     async def startup(self):
         await self.wait_until_ready()
-        global server
-        server = self.get_guild(903509643903512577)
-        global entryChannel
-        entryChannel = getChannel("910057428702339102")
-        global teachersChannel
-        teachersChannel = getChannel("910057586693398548")
-        global announcementChannel
-        announcementChannel = getChannel("910057532255514635")
-        global student
-        student = getRole(server, studentID)
-        global students
-        students = student.members
-        global teacher
-        teacher = getRole(server, teacherID)
-        global teachers
-        teachers = teacher.members
-        global serverInfo
-        serverInfo = [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        self.add_cog(events.onEvents(client, myDB, myCursor, serverInfo))
-        self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor, serverInfo))
-        self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor, serverInfo))
-        self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor, serverInfo))
+        self.add_cog(events.onEvents(client, myDB, myCursor))
+        self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor))
+        self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor))
+        self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor))
 
     @tasks.loop()
     async def reminders(self):
@@ -105,8 +76,6 @@ class MyClient(commands.Bot):
             return
         else:
             # sleep until the task should be done
-            # optionally create a new task that does the rest of this and
-            # `create_task` that if it's within the next couple minutes, `await` it otherwise
             await discord.utils.sleep_until(toggleTimeAndString(next_task[0]) )
 
             # do your task stuff here with `next_task`

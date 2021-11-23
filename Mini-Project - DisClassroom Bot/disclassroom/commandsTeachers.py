@@ -12,17 +12,19 @@ from utilFunctions import *
 #__________________________COMMANDS___________________________#
 
 class teacherCommands(commands.Cog):
-    def __init__(self, client, db, cursor, serverInfo):
+    def __init__(self, client, db, cursor):
         self.client = client
         self.myDB = db
         self.myCursor = cursor
-        # [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        # [0,      1,            2,               3,                   4,       5,       6,        7]
-        self.serverInfo = serverInfo
+        # serverInfo:
+        # [server, entryChannel, announcementsChannel, teacherChannel, studentRole, teacherRole, students, teachers]
+        # [0,      1,            2,                    3,              4,           5,           6,        7]
 
     @commands.command(name='info', aliases = ['i'])
-    @commands.has_any_role(int(teacherID))
     async def info(self, ctx, arg):
+        if isConfiguredTeacher(ctx, self.myCursor) == False:
+            return
+        serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         ID = re.sub("[^0-9]", "", arg)
         try:
             member = await ctx.guild.fetch_member(int(ID))
@@ -31,7 +33,7 @@ class teacherCommands(commands.Cog):
                           color=red)
             await ctx.send(embed=embed)
             return
-        if getRole(ctx.guild, studentID) not in member.roles:
+        if serverInfo[4] not in member.roles:
             embed = discord.Embed(description="User is not a student.",
                           color=red)
             await ctx.send(embed=embed)
@@ -48,7 +50,7 @@ class teacherCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     # Utility function to add assignment to database when "c!post assignment" is invoked
-    async def addAssignment(self, subject, title, ctx, deadline):
+    async def addAssignment(self, subject, title, ctx, deadline, serverInfo):
         #####################################################
         ##             UPDATE ASSIGNMENTS TABLE            ##
         #####################################################
@@ -84,7 +86,7 @@ class teacherCommands(commands.Cog):
         #####################################################
         tableName = "assgn" + str(assignmentID)
         self.myCursor.execute("CREATE TABLE {0}(studentName VARCHAR(100), studentID BIGINT UNSIGNED PRIMARY KEY, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100))".format(tableName))
-        students = self.serverInfo[4].members
+        students = serverInfo[4].members
         for i in students:
             self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, i, ctx.guild.id))
         self.myDB.commit()
@@ -92,8 +94,10 @@ class teacherCommands(commands.Cog):
 
     # Command to post announcement, quiz, or assignment
     @commands.command()
-    @commands.has_any_role(int(teacherID))
     async def post(self, ctx, arg1, *, arg2):
+        if isConfiguredTeacher(ctx, self.myCursor) == False:
+            return
+        serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         member = ctx.guild.get_member(ctx.author.id)
         #####################################################
         ##                   ANNOUNCEMENT                  ##
@@ -138,7 +142,7 @@ class teacherCommands(commands.Cog):
                     attach+='[{0}]({1})\n'.format(i.filename, i.url)
                 #attach -= '\n'
                 embed.add_field(name = 'Attachments', value = attach, inline = False)
-            await self.serverInfo[3].send(embed = embed)
+            await serverInfo[2].send(embed = embed)
         #####################################################
         ##                 ASSIGNMENT/QUIZ                 ##
         #####################################################
@@ -190,12 +194,12 @@ class teacherCommands(commands.Cog):
                     attach+='[{0}]({1})\n'.format(i.filename, i.url)
                 #attach -= '\n'
                 embed.add_field(name = 'Attachments', value = attach, inline = False)
-            assgnPosted = await self.addAssignment(subject, title, ctx, deadline)
+            assgnPosted = await self.addAssignment(subject, title, ctx, deadline, serverInfo)
             if assgnPosted != False:
                 if arg1.lower().strip() == 'assignment':
-                    message = await self.serverInfo[3].send(embed = embed)
+                    message = await serverInfo[2].send(embed = embed)
                 elif arg1.lower().strip() == 'quiz':
-                    message = await self.serverInfo[3].send(content = '<@&'+studentID+'>', embed = embed)
+                    message = await serverInfo[2].send(content = '<@&'+studentID+'>', embed = embed)
                 sqlUpdate = "UPDATE assignments SET assignmentLink = %s WHERE assignmentID = %s"
                 self.myCursor.execute(sqlUpdate, (message.jump_url, assgnPosted))
                 self.myDB.commit()

@@ -12,17 +12,15 @@ from utilFunctions import *
 #__________________________COMMANDS___________________________#
 
 class adminCommands(commands.Cog):
-    def __init__(self, client, db, cursor, serverInfo):
+    def __init__(self, client, db, cursor):
         self.client = client
         self.myDB = db
         self.myCursor = cursor
-        # [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        # [0,      1,            2,               3,                   4,       5,       6,        7]
-        self.serverInfo = serverInfo
 
     @commands.command()
-    @commands.has_any_role(int(teacherID))
     async def ping(self, ctx):
+        if isConfiguredTeacher(ctx, self.myCursor) == False:
+            return
         start_time = datetime.utcnow()
         message = await ctx.send(":ping_pong:")
         end_time = datetime.utcnow()

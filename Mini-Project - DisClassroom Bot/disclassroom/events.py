@@ -4,19 +4,21 @@ from discord.ext import commands, tasks
 from discord.ext.commands import *
 #_______________________IMPORTING PROJECT FILES_____________________#
 from variables import *
+from utilFunctions import *
 #______________________________ON EVENT_____________________________#
 class onEvents(commands.Cog):
-    def __init__(self, client, myDB, myCursor, serverInfo):
+    def __init__(self, client, myDB, myCursor):
         self.client = client
         self.myDB = myDB
         self.myCursor = myCursor
-        # [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        # [0,      1,            2,               3,                   4,       5,       6,        7]
-        self.serverInfo = serverInfo
+        # serverInfo
+        # [server, entryChannel, announcementsChannel, teacherChannel, student, teacher, students, teachers]
+        # [0,      1,            2,                    3,              4,       5,       6,        7]
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        welcomeMessage = await self.serverInfo[1].send('Welcome {0}! React with :one: if you are a teacher and :two: if you are a student.'.format(member.mention))
+        serverInfo = getServerInfo(self.client, member.guild.id, self.myCursor)
+        welcomeMessage = await serverInfo[1].send('Welcome {0}! React with :one: if you are a teacher and :two: if you are a student.'.format(member.mention))
         await welcomeMessage.add_reaction("1️⃣")
         await welcomeMessage.add_reaction("2️⃣")
         user = await self.client.fetch_user(member.id)
@@ -28,9 +30,9 @@ class onEvents(commands.Cog):
 
         reaction, user = await self.client.wait_for('reaction_add', check=check1)
         if reaction.emoji == '1️⃣':
-            embed1 = discord.Embed(description = '{0} is requesting the {1} role. Kindly confirm their identity.'.format(member.mention, self.serverInfo[5].mention),
+            embed1 = discord.Embed(description = '{0} is requesting the {1} role. Kindly confirm their identity.'.format(member.mention, serverInfo[5].mention),
                                 color = default_color)
-            confirmationMessage = await self.serverInfo[2].send(embed = embed1)
+            confirmationMessage = await serverInfo[3].send(embed = embed1)
             await confirmationMessage.add_reaction("✅")
             await confirmationMessage.add_reaction("❌")
 
@@ -39,17 +41,17 @@ class onEvents(commands.Cog):
 
             reaction, user = await self.client.wait_for('reaction_add', check=check2)
             if reaction.emoji == '✅':
-                await member.add_roles(self.serverInfo[5])
-                self.serverInfo[7].append(member)
+                await member.add_roles(serverInfo[5])
+                serverInfo[7].append(member)
                 await confirmationMessage.delete()
                 embed2 = discord.Embed(description = "Welcome to the teacher's lounge!",
                                 color = default_color)
-                await self.serverInfo[2].send(content = member.mention, embed=embed2)
+                await serverInfo[3].send(content = member.mention, embed=embed2)
             elif reaction.emoji == '❌':
                 await member.kick()
         elif reaction.emoji == '2️⃣':
             await self.getPersonalDetails(member, user, dmChannel)
-            await member.add_roles(self.serverInfo[4])
+            await member.add_roles(serverInfo[4])
             
             # Add new students joining the server to all assignments that are still due
             self.myCursor.execute("SELECT assignmentID FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
@@ -119,3 +121,6 @@ class onEvents(commands.Cog):
         embed = discord.Embed(description = "Details submitted. Welcome to the server!",
                             color = default_color)
         await member.send(embed = embed)
+
+    async def on_guild_join(guild):
+        pass

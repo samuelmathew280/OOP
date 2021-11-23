@@ -12,24 +12,42 @@ from utilFunctions import *
 #__________________________COMMANDS___________________________#
 
 class studentCommands(commands.Cog):
-    def __init__(self, client, db, cursor, serverInfo):
+    def __init__(self, client, db, cursor):
         self.client = client
         self.myDB = db
         self.myCursor = cursor
-        # [server, entryChannel, teachersChannel, announcementChannel, student, teacher, students, teachers]
-        # [0,      1,            2,               3,                   4,       5,       6,        7]
-        self.serverInfo = serverInfo
+
+    # Returns a list with all mutual servers' IDs only if the user is a Student in one of them and the bot is fully configured for that server. Otherwise, returns False.
+    async def getAllMutualServerIDs(self, ctx):
+        mutual_servers = ctx.author.mutual_guilds
+        k = 0
+        student = False
+        for i in mutual_servers:
+            self.myCursor.execute("SELECT configured, studentRoleID FROM servers WHERE serverID = {0}".format(i.id))
+            record = self.myCursor.fetchone()
+            if record is None:
+                continue
+            if record[0] != 'True':
+                continue
+            member = await i.fetch_member(ctx.author.id)
+            for j in member.roles:
+                if j.id == int(record[1]):
+                    student = True
+            mutual_servers[k] = i.id
+            k+=1
+        if student == True:
+            mutual_servers = tuple(mutual_servers)
+            return mutual_servers
+        else:
+            return False
 
     @commands.command()
     async def submit(self, ctx):
         if ctx.guild != None:                                   # Command should only work in DMs
             return
-        mutual_servers = ctx.author.mutual_guilds
-        k = 0
-        for i in mutual_servers:                                # Create a list with mutual servers' IDs
-            mutual_servers[k] = i.id
-            k+=1
-        mutual_servers = tuple(mutual_servers)
+        mutual_servers = await self.getAllMutualServerIDs(ctx)
+        if mutual_servers == False:                             # Meaning either the bot is not configured for the server(s) the user is in or the user is not a Student in the server(s) where the bot is present
+            return
         format_strings = ','.join(['%s'] * len(mutual_servers))                 # To create a string "%s, %s, %s ...." for the number of mutual servers
         self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline FROM assignments WHERE serverID IN ({0}) ORDER BY deadline".format(format_strings), mutual_servers)
         allAssignments = self.myCursor.fetchall()                    # Get all assignments to the student from all mutual servers with the bot             
@@ -54,7 +72,7 @@ class studentCommands(commands.Cog):
         for i in pendingAssignments:
             deadlineObj = toggleTimeAndString(i[6])
             deadlineDisplay = datetime.strftime(deadlineObj, "%I:%M %p %d/%m/%y")
-            embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(pendingAssignments)), i[2], i[3], i[5], i[4], deadlineDisplay)
+            embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(pendingAssignments)))), i[2], i[3], i[5], i[4], deadlineDisplay)
             k+=1 
         await ctx.send(embed=embed)                             # Display all pending assignments
         def check(m):
@@ -117,12 +135,9 @@ class studentCommands(commands.Cog):
         if arg2.strip().lower() == 'all' or arg2.strip().lower() == 'pending':
             if ctx.guild != None:                                   # Command should only work in DMs
                 return
-            mutual_servers = ctx.author.mutual_guilds
-            k = 0
-            for i in mutual_servers:                                # Create a list with mutual servers' IDs
-                mutual_servers[k] = i.id
-                k+=1
-            mutual_servers = tuple(mutual_servers)
+            mutual_servers = self.getAllMutualServerIDs(ctx)
+            if mutual_servers == False:                             # Meaning either the bot is not configured for the server(s) the user is in or the user is not a Student in the server(s) where the bot is present
+                return
             format_strings = ','.join(['%s'] * len(mutual_servers))                 # To create a string "%s, %s, %s ...." for the number of mutual servers
             self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline FROM assignments WHERE serverID IN ({0}) ORDER BY deadline".format(format_strings), mutual_servers)
             allAssignments = self.myCursor.fetchall()                    # Get all assignments to the student from all mutual servers with the bot             
@@ -138,7 +153,7 @@ class studentCommands(commands.Cog):
                     embed = discord.Embed(title = "All assignments.",
                                 description = '**#  |  Subject  |      Title      |  Teacher  |  Deadline**\n', 
                                 color = default_color)
-                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(pendingAssignments)), i[2], i[3], i[5], i[4], i[6])
+                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(pendingAssignments)))), i[2], i[3], i[5], i[4], i[6])
                     k+=1
             elif arg2.strip().lower() == 'pending':
                 if len(pendingAssignments) == 0:
@@ -150,7 +165,7 @@ class studentCommands(commands.Cog):
                     embed = discord.Embed(title = "Pending assignments.",
                                 description = '**#  |  Subject  |      Title      |  Teacher  |  Deadline**\n', 
                                 color = default_color)
-                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(pendingAssignments)), i[2], i[3], i[5], i[4], i[6])
+                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(pendingAssignments)))), i[2], i[3], i[5], i[4], i[6])
                     k+=1 
             await ctx.send(embed=embed)                             # Display all pending assignments
         else:
