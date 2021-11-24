@@ -54,7 +54,8 @@ def isConfiguredTeacher(ctx, myCursor):
             return True
     return False
 
-# Function to thoroughly re-check if server is configured
+# Function to thoroughly re-check if server is configured. Returns False if the server does not exist in the database (table: 'servers') or returns the updated entry of the server in the database.
+# Do not call this function frequently, as it makes several API calls. Only use when bot joins a server/c!config is used.
 async def checkIfConfigured(client, guild, myDB, myCursor):
     myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured FROM servers WHERE serverID = {0}".format(guild.id))
     record = myCursor.fetchone()
@@ -62,9 +63,38 @@ async def checkIfConfigured(client, guild, myDB, myCursor):
         return False
     if record[5] != 'True':
         return False
+    # Once record has been obtained and 'configured' field is set to 'True', meaning all other fields are filled too, we check if the existing IDs in the database are still valid and if those channels/roles still exist and are accessible.
+    # If not, the field is set to NULL again, server becomes un-configured and server admin will have to re-configure that field.
     try: 
         await client.fetch_channel(int(record[0]))
     except:
-        sqlUpdate = "UPDATE servers SET welcomeChannelID = NULL WHERE serverID = {0}".format(guild.id)
+        sqlUpdate = "UPDATE servers SET welcomeChannelID = NULL, configured = '0' WHERE serverID = {0}".format(guild.id)
         myCursor.execute(sqlUpdate)
         myDB.commit()
+    try: 
+        await client.fetch_channel(int(record[1]))
+    except:
+        sqlUpdate = "UPDATE servers SET announcementsID = NULL, configured = '0' WHERE serverID = {0}".format(guild.id)
+        myCursor.execute(sqlUpdate)
+        myDB.commit()
+    try: 
+        await client.fetch_channel(int(record[2]))
+    except:
+        sqlUpdate = "UPDATE servers SET staffRoomChannelID = NULL, configured = '0' WHERE serverID = {0}".format(guild.id)
+        myCursor.execute(sqlUpdate)
+        myDB.commit()
+    try: 
+        guild.get_role(int(record[3]))
+    except:
+        sqlUpdate = "UPDATE servers SET studentRoleID = NULL, configured = '0' WHERE serverID = {0}".format(guild.id)
+        myCursor.execute(sqlUpdate)
+        myDB.commit()
+    try: 
+        guild.get_role(int(record[4]))
+    except:
+        sqlUpdate = "UPDATE servers SET teacherRoleID = NULL, configured = '0' WHERE serverID = {0}".format(guild.id)
+        myCursor.execute(sqlUpdate)
+        myDB.commit()
+    myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured FROM servers WHERE serverID = {0}".format(guild.id))
+    record = myCursor.fetchone()
+    return record

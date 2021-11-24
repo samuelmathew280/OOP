@@ -122,5 +122,58 @@ class onEvents(commands.Cog):
                             color = default_color)
         await member.send(embed = embed)
 
-    async def on_guild_join(guild):
-        pass
+    # When a bot joins the server, it has to find a channel where it can send the message. If it can't write in any of the channels, it will DM the server owner.
+    # embed1 is for the message in the server, embed 2 is for the message to the owner.
+    # Returns the channel to which the message was sent
+    async def sendMessageToNewGuild(self, guild, embed1, embed2):
+        posted = False
+        for i in guild.channels:
+            try:
+                await i.send(embed = embed1)
+                posted = True
+                return i
+            except:
+                continue
+        if posted == False:
+            try:
+                await guild.owner.send(embed = embed2)
+                return guild.owner
+            except:
+                pass
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild):
+        self.myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured FROM servers WHERE serverID = {0}".format(guild.id))
+        record = self.myCursor.fetchone()
+        print(record)
+        if record is not None:
+            channels = []
+            for i in record[:3]:
+                if i is not None:
+                    channels.append("<#"+str(i)+">")
+            roles = []
+            for i in record[3:5]:
+                if i is not None:
+                    roles.append("<@&"+str(i)+">")
+            embed = discord.Embed(title = "Currently configured channel(s) and role(s)",
+                                  description = "Channels: {0}\nRoles: {1}\nKindly make sure the bot has `View Channel` and `Send Messages` permission for the above listed channels.\n\n**Type \"Done\" once you've done so.**".format(", ".join(channels), ", ".join(roles)),
+                                  color = default_color)
+            channel = await self.sendMessageToNewGuild(guild, embed, embed)
+            def check(m):
+                return (m.content.lower() == 'done') and m.channel == channel
+            await self.client.wait_for('message', check=check)
+
+        record = await checkIfConfigured(self.client, guild, self.myDB, self.myCursor)
+        print(record)
+        if record == False:
+            # New server, no existing record, hence all channels/roles need to be configured
+            embed1 = discord.Embed(description = "Kindly configure the bot for your server using the `c!config` command, before you can use all other commands.", color = default_color)
+            embed2 = discord.Embed(description = "Kindly configure the bot for your server using the `c!config` command in the server, before you can use all other commands.\n\nMake sure the bot has access to the channel(s) and can write in it.", color = default_color)
+            await self.sendMessageToNewGuild(guild, embed1, embed2)
+        else:
+            # record = [welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured]
+            if record[5] != 'True':
+                # record exists, but server isn't fully configured or some channel is missing
+                embed1 = discord.Embed(description = "Kindly re-configure the bot for your server using the `c!config` command, before you can use all other commands.", color = default_color)
+                embed2 = discord.Embed(description = "Kindly re-configure the bot for your server using the `c!config` command in the server, before you can use all other commands.\n\nMake sure the bot has access to the channel(s) and can write in it.", color = default_color)
+                await self.sendMessageToNewGuild(guild, embed1, embed2)
