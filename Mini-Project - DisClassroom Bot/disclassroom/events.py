@@ -123,7 +123,7 @@ class onEvents(commands.Cog):
         await member.send(embed = embed)
 
     # When a bot joins the server, it has to find a channel where it can send the message. If it can't write in any of the channels, it will DM the server owner.
-    # embed1 is for the message in the server, embed 2 is for the message to the owner.
+    # embed1 is for the message in the server, embed2 is for the message to the owner.
     # Returns the channel to which the message was sent
     async def sendMessageToNewGuild(self, guild, embed1, embed2):
         posted = False

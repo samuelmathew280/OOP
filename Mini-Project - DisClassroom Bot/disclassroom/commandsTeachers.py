@@ -199,7 +199,7 @@ class teacherCommands(commands.Cog):
                 if arg1.lower().strip() == 'assignment':
                     message = await serverInfo[2].send(embed = embed)
                 elif arg1.lower().strip() == 'quiz':
-                    message = await serverInfo[2].send(content = '<@&'+studentID+'>', embed = embed)
+                    message = await serverInfo[2].send(content = '<@&'+serverInfo[4]+'>', embed = embed)
                 sqlUpdate = "UPDATE assignments SET assignmentLink = %s WHERE assignmentID = %s"
                 self.myCursor.execute(sqlUpdate, (message.jump_url, assgnPosted))
                 self.myDB.commit()

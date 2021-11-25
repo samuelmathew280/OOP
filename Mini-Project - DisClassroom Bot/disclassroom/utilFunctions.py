@@ -34,9 +34,9 @@ def getServerInfo(client, guildID, myCursor):
     welcomeChannel = getChannel(client, str(record[0]))
     announcementChannel = getChannel(client, str(record[1]))
     teachersChannel = getChannel(client, str(record[2]))
-    student = getRole(server, studentID)
+    student = getRole(server, record[3])
     students = student.members
-    teacher = getRole(server, teacherID)
+    teacher = getRole(server, record[4])
     teachers = teacher.members
     serverInfo = [server, welcomeChannel, announcementChannel, teachersChannel, student, teacher, students, teachers]
     return serverInfo
@@ -54,12 +54,14 @@ def isConfiguredTeacher(ctx, myCursor):
             return True
     return False
 
-# Function to thoroughly re-check if server is configured. Returns False if the server does not exist in the database (table: 'servers') or returns the updated entry of the server in the database.
+# Function to thoroughly re-check if server is configured. Adds the server to the database and returns False if the server does not exist in the database (table: 'servers') OR returns the updated entry of the server in the database, after checking if every ID present in valid or not.
 # Do not call this function frequently, as it makes several API calls. Only use when bot joins a server/c!config is used.
 async def checkIfConfigured(client, guild, myDB, myCursor):
     myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured FROM servers WHERE serverID = {0}".format(guild.id))
     record = myCursor.fetchone()
     if record is None:
+        myCursor.execute("INSERT INTO servers (serverID, joinTime) VALUES ({0}, '{1}')".format(guild.id, toggleTimeAndString(datetime.now(IST))))
+        myDB.commit()
         return False
     if record[5] != 'True':
         return False
