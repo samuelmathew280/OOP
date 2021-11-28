@@ -3,6 +3,9 @@ from functools import reduce
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import *
+#_______________________IMPORTING PYRDRIVE LIBRARIES_____________________#
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 #_______________________IMPORTING OTHER LIBRARIES_____________________#
 from collections import*
 from datetime import datetime, timedelta
@@ -27,6 +30,23 @@ intents.members = True
 intents.bans = True
 #client = commands.Bot(command_prefix='c!', help_command=None, intents=intents)
 init() #colorama
+
+#____________________GOOGLE DRIVE AUTHENTICATION____________________#
+gauth = GoogleAuth()
+# Try to load saved client credentials
+gauth.LoadCredentialsFile("mycreds.txt")
+if gauth.credentials is None:
+    # Authenticate if they're not there
+    gauth.CommandLineAuth()
+elif gauth.access_token_expired:
+    # Refresh them if expired
+    gauth.Refresh()
+else:
+    # Initialize the saved creds
+    gauth.Authorize()
+# Save the current credentials to a file
+gauth.SaveCredentialsFile("mycreds.txt")
+drive = GoogleDrive(gauth)
 
 #_______________________MYSQL_____________________#
 import mysql.connector
@@ -60,7 +80,7 @@ class MyClient(commands.Bot):
         await self.wait_until_ready()
         self.add_cog(events.onEvents(client, myDB, myCursor))
         self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor))
-        self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor))
+        self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor, drive))
         self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor))
 
     @tasks.loop()
@@ -94,10 +114,10 @@ class MyClient(commands.Bot):
                         embed = discord.Embed(description = "**Due tomorrow:** [{0} - {1}]({2}).".format(next_task[4], next_task[5], next_task[6]), color = red)
                     elif difference.seconds == 3600:
                         embed = discord.Embed(description = "**Due in an hour:** [{0} - {1}]({2}).".format(next_task[4], next_task[5], next_task[6]), color = red)
-                    
-                    await user.send(embed = embed)
-                    # except:
-                    #     pass
+                    try:
+                        await user.send(embed = embed)
+                    except:
+                        pass
             else:
                 print("Deadline for assignment reached")
                 myCursor.execute("UPDATE assignments SET deadlineOver = 'True'")

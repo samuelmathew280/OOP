@@ -86,8 +86,7 @@ class teacherCommands(commands.Cog):
         #####################################################
         tableName = "assgn" + str(assignmentID)
         self.myCursor.execute("CREATE TABLE {0}(studentName VARCHAR(100), studentID BIGINT UNSIGNED PRIMARY KEY, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100))".format(tableName))
-        students = serverInfo[4].members
-        for i in students:
+        for i in serverInfo[6]:
             self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, i, ctx.guild.id))
         self.myDB.commit()
         return assignmentID

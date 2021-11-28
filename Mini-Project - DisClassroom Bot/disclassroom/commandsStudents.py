@@ -6,16 +6,19 @@ from datetime import datetime, timedelta
 from datetime import date
 from dateutil import relativedelta as rdelta
 import re
+import os
+import time
 #_______________________IMPORTING PROJECT FILES_____________________#
 from variables import *
 from utilFunctions import *
 #__________________________COMMANDS___________________________#
 
 class studentCommands(commands.Cog):
-    def __init__(self, client, db, cursor):
+    def __init__(self, client, db, cursor, drive):
         self.client = client
         self.myDB = db
         self.myCursor = cursor
+        self.drive = drive
 
     # Returns a list with all mutual servers' IDs only if the user is a Student in one of them and the bot is fully configured for that server. Otherwise, returns False.
     async def getAllMutualServerIDs(self, ctx):
@@ -86,7 +89,7 @@ class studentCommands(commands.Cog):
         assgnToSubmit = pendingAssignments[choice-1]
         embed = discord.Embed(description = "Upload all your submissions as attachments below. Type `c!confirm` once you've done so.", color = default_color)
         await ctx.send(embed = embed)
-        submissions = []
+        submissionIDs = []
         filenames = []
         while 1:                                                # Keeps reading messages for attachments until c!confirm is typed
             def check(m):
@@ -96,13 +99,30 @@ class studentCommands(commands.Cog):
                 break
             if msg.attachments != None and msg.attachments != []:
                 for i in msg.attachments:
-                    submissions.append(i.url)
-                    filenames.append(i.filename)
-        if submissions != []:
+                    fileName = re.sub('_', ' ', i.filename)
+                    filenames.append(fileName)
+                    # Uploading to Google Drive and obtaining ID
+                    path = "E:\Downloads"
+                    await i.save(path + '\\' + i.filename)
+                    file = self.drive.CreateFile({"title" : fileName,
+                                                  "parents": [{"id": folder_id}]})
+                    file.SetContentFile(path + '\\' + i.filename)
+                    file.Upload()
+                    file.InsertPermission({"role" : "reader", 
+                                            "type" : "anyone",
+                                            "additionalRoles" : ['commenter']})
+                    submissionIDs.append(file.metadata['id'])
+                    file.content.close()
+                    try:
+                        os.remove(path + '\\' + i.filename)
+                    except:
+                        pass
+
+        if submissionIDs != []:
             embed = discord.Embed(description = "Are you sure you want to submit?\nYour attachments:\n", color = default_color)
             k = 0
-            for i in submissions:                               # Print all the attachments to submit, for the user to confirm
-                embed.description += "[{0}]({1})\n".format(filenames[k], i)
+            for i in submissionIDs:                               # Print all the attachments to submit, for the user to confirm
+                embed.description += "[{0}]({1})\n".format(filenames[k], "https://drive.google.com/file/d/" + i + "/view?usp=sharing")
                 k+=1
             embed.description += "\n**Type Yes/No to confirm.**"
         else:                                                   # If submissions is empty, it means user didn't provide any attachments and typed "c!confirm"
@@ -123,7 +143,7 @@ class studentCommands(commands.Cog):
             submittedLate = '1'
         else:
             submittedLate = '0'
-        submissions_string = ', '.join(submissions)
+        submissions_string = ', '.join(submissionIDs)
         sqlUpdate = "UPDATE {0} SET submissions = '{1}', submissionTime = '{2}', submitted = '1', submittedLate = '{3}' WHERE studentID = {4}".format(tableName, submissions_string, toggleTimeAndString(localTime), submittedLate, ctx.author.id)
         self.myCursor.execute(sqlUpdate)
         self.myDB.commit()
@@ -135,7 +155,7 @@ class studentCommands(commands.Cog):
         if arg2.strip().lower() == 'all' or arg2.strip().lower() == 'pending':
             if ctx.guild != None:                                   # Command should only work in DMs
                 return
-            mutual_servers = self.getAllMutualServerIDs(ctx)
+            mutual_servers = await self.getAllMutualServerIDs(ctx)
             if mutual_servers == False:                             # Meaning either the bot is not configured for the server(s) the user is in or the user is not a Student in the server(s) where the bot is present
                 return
             format_strings = ','.join(['%s'] * len(mutual_servers))                 # To create a string "%s, %s, %s ...." for the number of mutual servers
@@ -149,11 +169,11 @@ class studentCommands(commands.Cog):
                     pendingAssignments.append(i)
             k = 0
             if arg2.strip().lower() == 'all':
-                for i in allAssignments:
-                    embed = discord.Embed(title = "All assignments.",
+                embed = discord.Embed(title = "All assignments.",
                                 description = '**#  |  Subject  |      Title      |  Teacher  |  Deadline**\n', 
                                 color = default_color)
-                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(pendingAssignments)))), i[2], i[3], i[5], i[4], i[6])
+                for i in allAssignments:
+                    embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(allAssignments)))), i[2], i[3], i[5], i[4], i[6])
                     k+=1
             elif arg2.strip().lower() == 'pending':
                 if len(pendingAssignments) == 0:
@@ -161,10 +181,10 @@ class studentCommands(commands.Cog):
                                         color = default_color)
                     await ctx.send(embed = embed)
                     return
-                for i in pendingAssignments:
-                    embed = discord.Embed(title = "Pending assignments.",
+                embed = discord.Embed(title = "Pending assignments.",
                                 description = '**#  |  Subject  |      Title      |  Teacher  |  Deadline**\n', 
                                 color = default_color)
+                for i in pendingAssignments:
                     embed.description += "{0}  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(pendingAssignments)))), i[2], i[3], i[5], i[4], i[6])
                     k+=1 
             await ctx.send(embed=embed)                             # Display all pending assignments
