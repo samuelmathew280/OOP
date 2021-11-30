@@ -86,7 +86,7 @@ class MyClient(commands.Bot):
     @tasks.loop()
     async def reminders(self):
         # if you don't care about keeping records of old tasks, remove this WHERE and change the UPDATE to DELETE
-        myCursor.execute("SELECT deadlineReminder, isReminder, deadline, assignmentID, subject, title, assignmentLink FROM assignments WHERE deadlineOver = '0' ORDER BY deadlineReminder")
+        myCursor.execute("SELECT deadlineReminder, isReminder, deadline, assignmentID, subject, title, assignmentLink FROM assignments WHERE deadlineOver = '0' AND deadline != NULL ORDER BY deadlineReminder")
         next_task = myCursor.fetchone()
         print(next_task)
         # if no remaining tasks, stop the loop

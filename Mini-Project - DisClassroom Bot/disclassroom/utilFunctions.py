@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from variables import *
 import re
 
-# Utility function to convert datetime object to string (hh:mm DD/MM/YY) or vice-versa, depending on type of parameter
+# Utility function to convert datetime object to string (YY/MM/DD hh:mm:ssTZ) or vice-versa, depending on type of parameter
 def toggleTimeAndString(sampleTime):
     if isinstance(sampleTime, datetime):
         convertedString = (datetime.strftime(sampleTime, defaultTimeFormat))
@@ -11,7 +11,7 @@ def toggleTimeAndString(sampleTime):
         convertedTime = (datetime.strptime(sampleTime, defaultTimeFormat)).replace(tzinfo=IST)
         return convertedTime
 
-# Convert time string (hh:mm DD/MM/YY) to a better formatted string
+# Convert time string (YY/MM/DD hh:mm:ssTZ) to a better formatted string
 def beautifyTimeString(timeString):
     convertedTime = (datetime.strptime(timeString, defaultTimeFormat)).replace(tzinfo=IST)
     convertedString = (datetime.strftime(convertedTime, "%B %d, %Y,\n%I:%M %p IST"))
@@ -34,9 +34,9 @@ def getServerInfo(client, guildID, myCursor):
     welcomeChannel = getChannel(client, str(record[0]))
     announcementChannel = getChannel(client, str(record[1]))
     teachersChannel = getChannel(client, str(record[2]))
-    student = getRole(server, record[3])
+    student = getRole(server, str(record[3]))
     students = student.members
-    teacher = getRole(server, record[4])
+    teacher = getRole(server, str(record[4]))
     teachers = teacher.members
     serverInfo = [server, welcomeChannel, announcementChannel, teachersChannel, student, teacher, students, teachers]
     return serverInfo
