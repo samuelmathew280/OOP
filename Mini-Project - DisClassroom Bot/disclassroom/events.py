@@ -177,3 +177,29 @@ class onEvents(commands.Cog):
                 embed1 = discord.Embed(description = "Kindly re-configure the bot for your server using the `c!config` command, before you can use all other commands.", color = default_color)
                 embed2 = discord.Embed(description = "Kindly re-configure the bot for your server using the `c!config` command in the server, before you can use all other commands.\n\nMake sure the bot has access to the channel(s) and can write in it.", color = default_color)
                 await self.sendMessageToNewGuild(guild, embed1, embed2)
+
+    @commands.Cog.listener()
+    async def on_guild_channel_delete(self, channel):
+        self.myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID FROM servers WHERE serverID = {0}".format(channel.guild.id))
+        record = self.myCursor.fetchone()
+        channels = ['welcomeChannelID', 'announcementsID', 'staffRoomChannelID']
+        k = 0
+        for i in record:
+            if channel.id == i:
+                sqlUpdate = "UPDATE servers SET {0} = NULL, configured = '0' WHERE serverID = {1}".format(channels[k], channel.guild.id)
+                self.myCursor.execute(sqlUpdate)
+                self.myDB.commit()
+            k+=1
+
+    @commands.Cog.listener()
+    async def on_guild_role_delete(self, role):
+        self.myCursor.execute("SELECT studentRoleID, teacherRoleID FROM servers WHERE serverID = {0}".format(role.guild.id))
+        record = self.myCursor.fetchone()
+        roles = ['studentRoleID', 'teacherRoleID']
+        k = 0
+        for i in record:
+            if role.id == i:
+                sqlUpdate = "UPDATE servers SET {0} = NULL, configured = '0' WHERE serverID = {1}".format(roles[k], role.guild.id)
+                self.myCursor.execute(sqlUpdate)
+                self.myDB.commit()
+            k+=1

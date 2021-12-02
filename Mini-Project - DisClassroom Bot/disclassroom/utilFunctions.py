@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+
+import discord
 from variables import *
 import re
 
@@ -42,17 +44,27 @@ def getServerInfo(client, guildID, myCursor):
     return serverInfo
 
 # Function to check if server is configured and command comes from a teacher
-def isConfiguredTeacher(ctx, myCursor):
+async def isConfiguredTeacher(ctx, myCursor):
     myCursor.execute("SELECT configured, teacherRoleID FROM servers WHERE serverID = {0}".format(ctx.guild.id))
     record = myCursor.fetchone()
     if record is None:
         return False
-    if record[0] != 'True':
-        return False
+    # Check if user who used the command is a teacher
+    teacher = False
     for i in ctx.author.roles:
         if i.id == int(record[1]):
-            return True
-    return False
+            teacher = True
+    # If command author is a student, return False regardless
+    if teacher == False:
+        return False
+    # If command author is a teacher, but server is not configured
+    if teacher == True and record[0] == '0':
+        embed = discord.Embed(description = 'Server is not configured. Kindly use `c!config` and do that before you can use the other commands.', color = default_color)
+        await ctx.send(embed = embed)
+        return False
+    # If command author is a teacher, and server is configured
+    if teacher == True and record[0] != '0':
+        return True
 
 # Function to thoroughly re-check if server is configured. Adds the server to the database and returns False if the server does not exist in the database (table: 'servers') OR returns the updated entry of the server in the database, after checking if every ID present in valid or not.
 # Do not call this function frequently, as it makes several API calls. Only use when bot joins a server/c!config is used.
