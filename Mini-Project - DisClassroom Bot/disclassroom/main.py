@@ -18,6 +18,7 @@ from colorama import init
 from termcolor import colored
 #_______________________IMPORTING PROJECT FILES_____________________#
 from variables import *
+import backgroundTasks
 import events
 import commandsTeachers
 import commandsStudents
@@ -67,66 +68,19 @@ myCursor = myDB.cursor(buffered=True)   # The buffered = True is required becaus
 class MyClient(commands.Bot):
     def __init__(self, command_prefix, help_command, *args, **kwargs):
         super().__init__(command_prefix, help_command, *args, **kwargs)
-        # an attribute we can access from our task
-        
         # start the task to run in the background
         self.loop.create_task(self.startup())
-        self.reminders.start()
 
     async def on_ready(self):
         print(colored("{0} is now online.".format(self.user), 'green'))
 
     async def startup(self):
         await self.wait_until_ready()
+        self.add_cog(backgroundTasks.Tasks(client, myDB, myCursor))
         self.add_cog(events.onEvents(client, myDB, myCursor))
-        self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor))
+        self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor, drive))
         self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor, drive))
         self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor))
-
-    @tasks.loop()
-    async def reminders(self):
-        # if you don't care about keeping records of old tasks, remove this WHERE and change the UPDATE to DELETE
-        myCursor.execute("SELECT deadlineReminder, isReminder, deadline, assignmentID, subject, title, assignmentLink FROM assignments WHERE deadlineOver = '0' AND deadline != NULL ORDER BY deadlineReminder")
-        next_task = myCursor.fetchone()
-        print(next_task)
-        # if no remaining tasks, stop the loop
-        if next_task is None:
-            print("Task stopped")
-            self.reminders.cancel()
-            return
-        else:
-            # sleep until the task should be done
-            await discord.utils.sleep_until(toggleTimeAndString(next_task[0]) )
-
-            # do your task stuff here with `next_task`
-            if next_task[1] == "True":
-                print("Reminder for assignment")
-                myCursor.execute("UPDATE assignments SET deadlineReminder = '{0}', isReminder = 'False'".format(next_task[2]))
-                myDB.commit()
-                tableName = "assgn" + str(next_task[3])
-                myCursor.execute("SELECT studentID FROM {0} WHERE submitted = '0'".format(tableName))
-                allPendingStudents = myCursor.fetchall()
-                difference = toggleTimeAndString(next_task[2]) - toggleTimeAndString(next_task[0])
-                print(allPendingStudents, difference)
-                for i in allPendingStudents:
-                    user = client.get_user(i[0])
-                    if difference.days == 1:
-                        embed = discord.Embed(description = "**Due tomorrow:** [{0} - {1}]({2}).".format(next_task[4], next_task[5], next_task[6]), color = red)
-                    elif difference.seconds == 3600:
-                        embed = discord.Embed(description = "**Due in an hour:** [{0} - {1}]({2}).".format(next_task[4], next_task[5], next_task[6]), color = red)
-                    try:
-                        await user.send(embed = embed)
-                    except:
-                        pass
-            else:
-                print("Deadline for assignment reached")
-                myCursor.execute("UPDATE assignments SET deadlineOver = 'True'")
-                myDB.commit()
-            # await self.db_conn.execute('UPDATE tasks SET completed = true WHERE row_id = $1', next_task['row_id'])
-
-    @reminders.before_loop
-    async def before_reminders(self):
-        await self.wait_until_ready() # wait until the bot logs in
 
     # async def on_command_error(self, context, exception):
     #     pass
