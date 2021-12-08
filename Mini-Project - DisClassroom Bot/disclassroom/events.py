@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import *
 #_______________________IMPORTING PROJECT FILES_____________________#
+import asyncio
 from variables import *
 from utilFunctions import *
 #______________________________ON EVENT_____________________________#
@@ -17,17 +18,44 @@ class onEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_join(self, member):
-        serverInfo = getServerInfo(self.client, member.guild.id, self.myCursor)
-        welcomeMessage = await serverInfo[1].send('Welcome {0}! React with :one: if you are a teacher and :two: if you are a student.'.format(member.mention))
-        await welcomeMessage.add_reaction("1️⃣")
-        await welcomeMessage.add_reaction("2️⃣")
         user = await self.client.fetch_user(member.id)
         dmChannel = user.dm_channel
         if dmChannel == None:
             dmChannel = await user.create_dm()
+        self.myCursor.execute("SELECT configured FROM servers WHERE serverID = {0}".format(member.guild.id))
+        record = self.myCursor.fetchone()
+        if record[0] == '0':
+            embed = discord.Embed(description = "Kindly contact a server admin to configure the bot and request them for the Teacher/Student role.\n\nIf you're a student, type **Yes** below.", color = default_color)
+            try:
+                await user.send(embed = embed)
+            except:
+                return
+            def check(m):
+                return m.content.lower() == 'yes' and m.channel == dmChannel and m.author == user
+            try:
+                msg = await self.client.wait_for('message', check=check, timeout = 600.0)
+            except asyncio.TimeoutError:
+                return
+            if msg.content.lower() == 'yes':
+                await self.getPersonalDetails(member, user, dmChannel)
+                # Add new students joining the server to all assignments that are still due
+                self.myCursor.execute("SELECT assignmentID FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
+                dueAssignments = self.myCursor.fetchall()
+                for i in dueAssignments:
+                    tableName = "assgn" + str(i[0])
+                    self.myCursor.execute("SELECT studentID FROM {0} WHERE studentID = {1}".format(tableName, member.id))
+                    record = self.myCursor.fetchone()
+                    if record is None:
+                        self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
+                        self.myDB.commit()
+            return
+            
+        serverInfo = getServerInfo(self.client, member.guild.id, self.myCursor)
+        welcomeMessage = await serverInfo[1].send('Welcome {0}! React with :one: if you are a teacher and :two: if you are a student.'.format(member.mention))
+        await welcomeMessage.add_reaction("1️⃣")
+        await welcomeMessage.add_reaction("2️⃣")
         def check1(reaction, user):
             return reaction.message == welcomeMessage and user == member and (str(reaction.emoji) == '1️⃣' or str(reaction.emoji) =='2️⃣')
-
         reaction, user = await self.client.wait_for('reaction_add', check=check1)
         if reaction.emoji == '1️⃣':
             embed1 = discord.Embed(description = '{0} is requesting the {1} role. Kindly confirm their identity.'.format(member.mention, serverInfo[5].mention),
@@ -67,11 +95,11 @@ class onEvents(commands.Cog):
 
     async def getPersonalDetails(self, member, user, dmChannel):
         # Check if student's record in same server already exists or not
-        self.myCursor.execute("SELECT serverID FROM students WHERE studentID = {0} AND serverID = {1}".format(member.id, member.guild.id))
+        self.myCursor.execute("SELECT studentName, rollNo, email FROM students WHERE studentID = {0} AND serverID = {1}".format(member.id, member.guild.id))
         record = self.myCursor.fetchone()
         updation = False
         if record is not None:
-            embed = discord.Embed(description = 'Your personal details are already present in the database. Do you want to update them?\n\n**Enter Yes/No to confirm.**',
+            embed = discord.Embed(description = 'Your personal details are already present in the database.\n**Name:** {0}\n**Roll no.:** {1}\n**Email:** {2}\n\nDo you want to update them?\n**Enter Yes/No to confirm.**'.format(record[0], record[1], record[2]),
                                 color = default_color)
             await member.send(embed = embed)
             def check(m):

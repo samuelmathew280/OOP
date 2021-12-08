@@ -3,7 +3,6 @@ import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import *
 #_______________________IMPORTING PROJECT FILES_____________________#
-import asyncio
 from variables import *
 from utilFunctions import *
 #______________________________ON EVENT_____________________________#

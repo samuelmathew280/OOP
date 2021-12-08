@@ -3,9 +3,11 @@ from functools import reduce
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import *
-#_______________________IMPORTING PYRDRIVE LIBRARIES_____________________#
+#___________________IMPORTING GOOGLE API WRAPPER LIBRARIES______ __________#
 from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 #_______________________IMPORTING OTHER LIBRARIES_____________________#
 from collections import*
 from datetime import datetime, timedelta
@@ -32,7 +34,16 @@ intents.bans = True
 #client = commands.Bot(command_prefix='c!', help_command=None, intents=intents)
 init() #colorama
 
-#____________________GOOGLE DRIVE AUTHENTICATION____________________#
+#____________________GOOGLE DRIVE AND SHEETS AUTHENTICATION____________________#
+scope = ['https://spreadsheets.google.com/feeds',
+         'https://www.googleapis.com/auth/drive']
+json_keyfile_path = "E:\Downloads\\beaming-caster-333210-e65124f45536.json"
+#Read the service account key
+credentials = ServiceAccountCredentials.from_json_keyfile_name(
+    json_keyfile_path, scope)
+#Authenticate for gspread
+gc = gspread.authorize(credentials)
+
 gauth = GoogleAuth()
 # Try to load saved client credentials
 gauth.LoadCredentialsFile("mycreds.txt")
@@ -55,7 +66,7 @@ import mysql.connector
 myDB = mysql.connector.connect(
     host = 'localhost',               # Locally hosted database, not on a web server
     user = 'root',
-    password = 'password',                    # Password for locally hosted database
+    password = 'password',            # Password for locally hosted database
     database = 'disclassroom'         # Select pre-existing database
 )
 # Create cursor instance
@@ -64,7 +75,7 @@ myCursor = myDB.cursor(buffered=True)   # The buffered = True is required becaus
                                         # Meaning, that there are still (n-1) results that were loading which weren't read
                                         # This problem is solved with a buffered cursor that loads ALL the rows behind the scenes, but only takes one from the connector, so MySQL won't show an error
 
-#__________________________ON STARTUP__________________________#
+#________________________CREATE CLIENT_________________________#
 class MyClient(commands.Bot):
     def __init__(self, command_prefix, help_command, *args, **kwargs):
         super().__init__(command_prefix, help_command, *args, **kwargs)
@@ -76,11 +87,11 @@ class MyClient(commands.Bot):
 
     async def startup(self):
         await self.wait_until_ready()
-        self.add_cog(backgroundTasks.Tasks(client, myDB, myCursor))
-        self.add_cog(events.onEvents(client, myDB, myCursor))
-        self.add_cog(commandsTeachers.teacherCommands(client, myDB, myCursor, drive))
-        self.add_cog(commandsStudents.studentCommands(client, myDB, myCursor, drive))
-        self.add_cog(commandsAdmin.adminCommands(client, myDB, myCursor))
+        self.add_cog(backgroundTasks.Tasks(self, myDB, myCursor))
+        self.add_cog(events.onEvents(self, myDB, myCursor))
+        self.add_cog(commandsTeachers.teacherCommands(self, myDB, myCursor, drive, gc))
+        self.add_cog(commandsStudents.studentCommands(self, myDB, myCursor, drive))
+        self.add_cog(commandsAdmin.adminCommands(self, myDB, myCursor))
 
     # async def on_command_error(self, context, exception):
     #     pass

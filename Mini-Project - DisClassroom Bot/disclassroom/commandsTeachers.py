@@ -2,6 +2,7 @@
 import discord
 from discord.ext import commands
 #_______________________IMPORTING OTHER LIBRARIES_____________________#
+import asyncio
 from datetime import datetime, timedelta
 from datetime import date
 from dateutil import relativedelta as rdelta
@@ -12,17 +13,19 @@ from utilFunctions import *
 #__________________________COMMANDS___________________________#
 
 class teacherCommands(commands.Cog):
-    def __init__(self, client, db, cursor):
+    def __init__(self, client, db, cursor, drive, gc):
         self.client = client
         self.myDB = db
         self.myCursor = cursor
+        self.drive = drive
+        self.gc = gc
         # serverInfo:
         # [server, entryChannel, announcementsChannel, teacherChannel, studentRole, teacherRole, students, teachers]
         # [0,      1,            2,                    3,              4,           5,           6,        7]
 
     @commands.command(name='info', aliases = ['i'])
     async def info(self, ctx, arg):
-        if isConfiguredTeacher(ctx, self.myCursor) == False:
+        if await isConfiguredTeacher(ctx, self.myCursor) == False:
             return
         serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         ID = re.sub("[^0-9]", "", arg)
@@ -50,7 +53,7 @@ class teacherCommands(commands.Cog):
         await ctx.send(embed=embed)
 
     # Utility function to add assignment to database when "c!post assignment" is invoked
-    async def addAssignment(self, subject, title, ctx, deadline, serverInfo):
+    async def addAssignment(self, subject, title, marks, ctx, deadline, serverInfo):
         #####################################################
         ##             UPDATE ASSIGNMENTS TABLE            ##
         #####################################################
@@ -72,29 +75,46 @@ class teacherCommands(commands.Cog):
             else:
                 isReminder = False
                 deadlineReminder = deadlineObj
-            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, deadline, deadlineReminder, isReminder, postTime) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'True', '{3}', '{4}', '{5}', '{6}')".format(ctx, subject, title, toggleTimeAndString(deadlineObj), toggleTimeAndString(deadlineReminder), isReminder, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
+            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, deadline, deadlineReminder, isReminder, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'True', '{3}', '{4}', '{5}', '{6}', {7})".format(ctx, subject, title, toggleTimeAndString(deadlineObj), toggleTimeAndString(deadlineReminder), isReminder, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
             self.myDB.commit()
             self.myCursor.execute("SELECT assignmentID FROM assignments WHERE serverID = '{0}' AND subject = '{1}' AND postTime = '{2}'".format(ctx.guild.id, subject, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             assignmentID = self.myCursor.fetchone()[0]
         else:
-            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, postTime) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'False', '{3}')".format(ctx, subject, title, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
+            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'False', '{3}', {4})".format(ctx, subject, title, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
             self.myDB.commit()
             self.myCursor.execute("SELECT assignmentID FROM assignments WHERE serverID = '{0}' AND subject = '{1}' AND postTime = '{2}'".format(ctx.guild.id, subject, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             assignmentID = self.myCursor.fetchone()[0]
         #####################################################
         ##            CREATE TABLE FOR ASSIGNMENT          ##
         #####################################################
+        f = self.drive.CreateFile({
+            'title': '{0} {1} - {2}'.format(assignmentID, subject, title),
+            'mimeType': 'application/vnd.google-apps.spreadsheet',
+            "parents": [{"id": folder_id}]})
+        f.Upload()
+        f.InsertPermission({"role" : "writer", 
+                        "type" : "anyone",
+                        "additionalRoles" : ['commenter']})
+        workbook = self.gc.open_by_key(f['id'])
+        worksheet = workbook.sheet1
+        worksheet.update('A1', [['Sr. no.', 'Tag | Name', 'Roll no.', 'Marks']])
         tableName = "assgn" + str(assignmentID)
-        self.myCursor.execute("CREATE TABLE {0}(studentName VARCHAR(100), studentID BIGINT UNSIGNED PRIMARY KEY, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100))".format(tableName))
+        self.myCursor.execute("CREATE TABLE {0}(studentName VARCHAR(100), studentID BIGINT UNSIGNED PRIMARY KEY, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100), marks INT)".format(tableName))
+        k = 1
         for i in serverInfo[6]:
+            self.myCursor.execute("SELECT studentTag, studentName, rollNo FROM students WHERE studentID = {0} AND serverID = {1}".format(i.id, ctx.guild.id))
+            record = self.myCursor.fetchone()
+            worksheet.update('A{0}'.format(k+1), [[k, record[0] + ' | ' + record[1], record[2]]])
             self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, i, ctx.guild.id))
+            k+=1
         self.myDB.commit()
+        worksheet.columns_auto_resize(0, 4)
         return assignmentID
 
     # Command to post announcement, quiz, or assignment
     @commands.command()
     async def post(self, ctx, arg1, *, arg2):
-        if isConfiguredTeacher(ctx, self.myCursor) == False:
+        if await isConfiguredTeacher(ctx, self.myCursor) == False:
             return
         serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         member = ctx.guild.get_member(ctx.author.id)
@@ -152,7 +172,7 @@ class teacherCommands(commands.Cog):
                 embed = discord.Embed(description = 'Subject, title and description are required!', color = red)
                 await ctx.send(embed=embed)
                 return
-            paramsList = re.findall(r" [-]['stdle'] ", arg2)
+            paramsList = re.findall(r" [-]['stdlme'] ", arg2)
             params = ''
             for i in paramsList:
                 params += i[2]
@@ -172,15 +192,23 @@ class teacherCommands(commands.Cog):
                 if i == 's':
                     subject = embedParts[k]
                     if params.count('t') == 0:
-                        embed.title = '{0}'.format(embedParts[k])
+                        embed.title = embedParts[k]
                 if i == 't':
                     title = embedParts[k]
                     subPos = params.index('s')
-                    embed.title = '{0} - {1}'.format(embedParts[subPos], embedParts[k])
+                    embed.title = embedParts[subPos] + ' - ' + embedParts[k]
                 if i == 'd':
                     embed.description = '{0}'.format(embedParts[k])
                 if i == 'l':
                     embed.add_field(name = 'Link', value = '[Click here]({0})'.format(embedParts[k]), inline = False)
+                if i == 'm':
+                    try:
+                        marks = int(embedParts[k])
+                    except:
+                        invalidMarks = discord.Embed(description = 'Marks entered are invalid. Ensure the marks are an integer.', color = red)
+                        await ctx.send(embed = invalidMarks)
+                        return
+                    embed.add_field(name = 'Marks', value = embedParts[k], inline = False)
                 if i == 'e':
                     deadlineObj = datetime.strptime(embedParts[k], "%H:%M %d/%m/%y").replace(tzinfo=IST)
                     deadline = embedParts[k] = toggleTimeAndString(deadlineObj)
@@ -193,7 +221,7 @@ class teacherCommands(commands.Cog):
                     attach+='[{0}]({1})\n'.format(i.filename, i.url)
                 #attach -= '\n'
                 embed.add_field(name = 'Attachments', value = attach, inline = False)
-            assgnPosted = await self.addAssignment(subject, title, ctx, deadline, serverInfo)
+            assgnPosted = await self.addAssignment(subject, title, marks, ctx, deadline, serverInfo)
             if assgnPosted != False:
                 if arg1.lower().strip() == 'assignment':
                     message = await serverInfo[2].send(embed = embed)
@@ -203,7 +231,154 @@ class teacherCommands(commands.Cog):
                 self.myCursor.execute(sqlUpdate, (message.jump_url, assgnPosted))
                 self.myDB.commit()
                 # If assignment has deadline, restart reminder background task
-                if self.client.reminders.is_running():
-                    self.client.reminders.restart()
+                if self.client.cogs['Tasks'].reminders.is_running():
+                    self.client.cogs['Tasks'].reminders.restart()
                 else:
-                    self.client.reminders.start()
+                    self.client.cogs['Tasks'].reminders.start()
+
+    async def getAssignment(self, ctx, assignmentList, option):
+        embed = discord.Embed(description = '**#  |  Subject  |      Title      |  Teacher  |  Deadline**\n', 
+                                color = default_color)
+        if option == 1:
+            embed.title = "All assignments"
+        elif option == 2:
+            embed.title = "Your assignments"
+
+        k = 0
+        for i in assignmentList:
+            if i[6] is not None:
+                convertedTime = (datetime.strptime(i[6], defaultTimeFormat)).replace(tzinfo=IST)
+                convertedString = (datetime.strftime(convertedTime, "%I:%M %p IST, %B %d, %Y"))
+            else:
+                convertedString = "`None`"
+            embed.description += "`{0}`  | {1} | [{2}]({3}) | <@{4}> | {5}\n".format(str(k+1).zfill(len(str(len(assignmentList)))), i[2], i[3], i[5], i[4], convertedString)
+            k+=1
+        embed.description += "\nSelect the assignment you want to view in detail, by typing the corresponding number."
+        await ctx.send(embed=embed)
+        def check(m):
+            try:
+                return int(m.content) in range(1, len(assignmentList)+1) and m.channel == ctx.channel
+            except:
+                return
+        try:
+            msg = await self.client.wait_for('message', check=check, timeout = 300.0)     # Accept input to select which assignment to view
+        except asyncio.TimeoutError:
+            return
+        choice = int(msg.content)
+        selectedAssignment = assignmentList[choice-1]
+        return selectedAssignment
+
+    async def postAssignmentDetails(self, ctx, assignment):      # assignment = [assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime]
+        tableName = "assgn" + str(assignment[0])
+        embed1 = discord.Embed(title = ':pencil: Assignment details',
+                                description = '**[{0}]({1})**'.format(assignment[3], assignment[5]),
+                                color = default_color)
+        embed1.add_field(name = "Subject", value = assignment[2])
+        embed1.add_field(name = "Professor", value = "<@"+str(assignment[4])+">")
+        if assignment[6] is not None:
+            embed1.add_field(name = "Deadline", value = beautifyTimeString(assignment[6]))
+        else:
+            embed1.add_field(name = "Deadline", value = '`None`')
+        embed1.add_field(name = "Posted time", value = beautifyTimeString(assignment[8]))
+        if assignment[7] == '0':
+            embed1.add_field(name = "Deadline over", value = "No", inline=False)
+        else:
+            embed1.add_field(name = "Deadline over", value = "Yes", inline=False)
+        self.myCursor.execute("SELECT * FROM {0}".format(tableName))
+        allStudents = self.myCursor.fetchall()
+        self.myCursor.execute("SELECT * FROM {0} WHERE submitted != '0'".format(tableName))
+        submittedStudents = self.myCursor.fetchall()
+        embed1.add_field(name = "Submitted by", value = "{0}/{1}".format(len(submittedStudents), len(allStudents)))
+        lateSubmissions = 0
+        for i in submittedStudents:
+            if i[6] == '1':
+                lateSubmissions +=1
+        embed1.add_field(name = "Late submissions", value = "{0}/{1}".format(lateSubmissions, len(submittedStudents)))
+        await ctx.send(embed = embed1)
+        embed2 = discord.Embed(title = ':student: List of students', description = '**#  |   Mention   |    User    |  ID  |  Submitted  |  Submissions**\n', color = default_color)
+        k = 1
+        for i in allStudents:
+            if i[5] != '0':
+                if i[6] == '0':
+                    embed2.description += "`{0}`  | <@{1}> | {2} | `{1}` | :white_check_mark:\n​".format(str(k).zfill(len(str(len(allStudents)))), i[1], i[0])
+                else:
+                    embed2.description += "`{0}`  | <@{1}> | {2} | `{1}` | :white_check_mark: *(late)*\n".format(str(k).zfill(len(str(len(allStudents)))), i[1], i[0])
+                if i[3] is not None:
+                    submissionIDs = i[3].split(', ')
+                    submissions = []
+                    l = 1
+                    for j in submissionIDs:
+                        submissions.append("[Submission {0}]({1})".format(l, "https://drive.google.com/file/d/" + j + "/view?usp=sharing"))
+                        l+=1
+                    submissionString = ', '.join(submissions)
+                    embed2.description += '​ ​ ​ ​ ​ ​ ​ ' + submissionString + '\n'
+            else:
+                embed2.description += "`{0}`  | <@{1}> | {2} | `{1}` | :x:\n".format(str(k).zfill(len(str(len(allStudents)))), i[1], i[0])
+            k+=1
+        embed2.description += "\nType the corresponding number to get more details on a student."
+        await ctx.send(embed = embed2)
+        def check(m):
+            try:
+                return int(m.content) in range(1, len(allStudents)+1) and m.channel == ctx.channel
+            except:
+                return
+        try:
+            msg = await self.client.wait_for('message', check=check, timeout = 300.0)     # Accept input to select which assignment to view
+        except asyncio.TimeoutError:
+            return
+        choice = int(msg.content)
+        studentRecord = allStudents[choice-1]
+        embed3 = discord.Embed(title = "Student assignment details", description = '**[{0} - {1}]({2})**'.format(assignment[2], assignment[3], assignment[5]), color = default_color)
+        self.myCursor.execute("SELECT * FROM students WHERE studentID = '{0}' AND serverID = {1}".format(studentRecord[1], ctx.guild.id))
+        studentDetails = self.myCursor.fetchone()
+        embed3.add_field(name="Name [Roll no.]", value=studentDetails[0] + '\n['+studentDetails[4]+']', inline=True)
+        embed3.add_field(name="Username", value="<@{0}> | `{1}`".format(studentDetails[2], studentDetails[1]), inline=True)
+        embed3.add_field(name="ID", value=str(studentDetails[2]), inline=True)
+        if studentRecord[4] is not None:
+            embed3.add_field(name = "Submission time", value = beautifyTimeString(studentRecord[4]))
+        else:
+            embed3.add_field(name = "Submission time", value = "`None`")
+        if assignment[6] is not None:
+            embed3.add_field(name = "Deadline", value = beautifyTimeString(assignment[6]))
+        else:
+            embed3.add_field(name = "Deadline", value = '`None`')
+        timeChecks = ''
+        if studentRecord[5] == '0':
+            timeChecks += ":x: Submitted"
+        else:
+            timeChecks += ":white_check_mark: Submitted\n"
+            if studentRecord[6] != '0':
+                timeChecks += ":x: Submitted on time"
+            else:
+                timeChecks += ":white_check_mark: Submitted on time"
+        embed3.add_field(name = "Checks", value = timeChecks)
+        if studentRecord[3] is not None:
+            submissionIDs = studentRecord[3].split(', ')
+            submissionString = ''
+            for i in submissionIDs:
+                file = self.drive.CreateFile({"id": i})
+                file.FetchMetadata(fields='id,title')
+                submissionString += ":small_orange_diamond: [{0}]({1})\n".format(file['title'], "https://drive.google.com/file/d/" + i + "/view?usp=sharing")
+            embed3.add_field(name = "Submissions", value = submissionString, inline = False)
+        await ctx.send(embed = embed3)
+
+    @commands.command()
+    async def review(self, ctx, arg = ''):
+        if await isConfiguredTeacher(ctx, self.myCursor) == False:
+            return
+        serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
+        #          = [server, entryChannel, announcementsChannel, teacherChannel, studentRole, teacherRole, students, teachers]
+        if arg.strip().lower() == 'all':
+            self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime FROM assignments WHERE serverID = {0} ORDER BY deadline".format(ctx.guild.id))
+            allAssignments = self.myCursor.fetchall()                    # Get all assignments from the server
+            selectedAssignment = await self.getAssignment(ctx, allAssignments, 1)
+            await self.postAssignmentDetails(ctx, selectedAssignment)
+        elif arg.strip().lower() == 'me' or arg.strip().lower() == 'mine':
+            self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime FROM assignments WHERE serverID = {0.guild.id} AND teacherID = {0.author.id} ORDER BY deadline".format(ctx))
+            myAssignments = self.myCursor.fetchall()                    # Get all assignments from the server
+            selectedAssignment = await self.getAssignment(ctx, myAssignments, 2)
+            await self.postAssignmentDetails(ctx, selectedAssignment)
+        else:
+            embed = discord.Embed(description = 'Type `c!help review` for help with this command.', 
+                                        color = default_color)
+            await ctx.send(embed = embed)
