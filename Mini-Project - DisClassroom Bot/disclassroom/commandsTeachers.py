@@ -99,7 +99,7 @@ class teacherCommands(commands.Cog):
         worksheet = workbook.sheet1
         worksheetTable = [['Sr. no.', 'Tag | Name', 'Roll no.', 'Marks']]
         tableName = "assgn" + str(assignmentID)
-        self.myCursor.execute("CREATE TABLE {0}(studentName VARCHAR(100), studentID BIGINT UNSIGNED PRIMARY KEY, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100), marks INT)".format(tableName))
+        self.myCursor.execute("CREATE TABLE {0}(ID INT AUTO_INCREMENT PRIMARY KEY, studentName VARCHAR(100), studentID BIGINT UNSIGNED, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100), marks INT)".format(tableName))
         k = 1
         for i in serverInfo[6]:
             self.myCursor.execute("SELECT studentTag, studentName, rollNo FROM students WHERE studentID = {0} AND serverID = {1}".format(i.id, ctx.guild.id))
@@ -295,7 +295,7 @@ class teacherCommands(commands.Cog):
             embed1.add_field(name = "Deadline over", value = "No")
         else:
             embed1.add_field(name = "Deadline over", value = "Yes")
-        self.myCursor.execute("SELECT * FROM {0}".format(tableName))
+        self.myCursor.execute("SELECT studentName, studentID, serverID, submissions, submissionTime, submitted, submittedLate, marks FROM {0} ORDER BY ID".format(tableName))
         allStudents = self.myCursor.fetchall()
         sum = 0
         count = 0
@@ -303,7 +303,7 @@ class teacherCommands(commands.Cog):
             if i[7] is not None:
                 sum += int(i[7])
                 count += 1
-        self.myCursor.execute("SELECT * FROM {0} WHERE submitted != '0'".format(tableName))
+        self.myCursor.execute("SELECT studentName, studentID, serverID, submissions, submissionTime, submitted, submittedLate, marks FROM {0} WHERE submitted != '0' ORDER BY ID".format(tableName))
         submittedStudents = self.myCursor.fetchall()
         embed1.add_field(name = "Submitted by", value = "{0}/{1}".format(len(submittedStudents), len(allStudents)))
         lateSubmissions = 0
@@ -418,11 +418,14 @@ class teacherCommands(commands.Cog):
         workbook = self.gc.open_by_key(selectedAssignment[10])
         worksheet = workbook.sheet1
         markList = worksheet.get('D2:D', major_dimension = 'COLUMNS')
+        if len(markList) == 0 or markList is None:
+            embed = discord.Embed(description = 'Marks column in worksheet is empty. Make sure you have saved any changes to it.\nType `c!review` to retrieve the worksheet and grade the students.', 
+                                  color = red)
+            await ctx.send(embed = embed)
+            return
         markList = markList[0]
-        self.myCursor.execute("SELECT studentID, marks FROM {0}".format(tableName))
+        self.myCursor.execute("SELECT studentID, marks FROM {0} ORDER BY ID".format(tableName))
         allStudentRecords = self.myCursor.fetchall()
-        print(allStudentRecords)
-        print(markList)
         k = 0
         for i in markList[:len(allStudentRecords)]:
             if i == '':
@@ -460,23 +463,50 @@ class teacherCommands(commands.Cog):
         sqlUpdate = "UPDATE assignments SET marksReleased = 'True' WHERE assignmentID = {0}".format(selectedAssignment[0])
         self.myCursor.execute(sqlUpdate)
         self.myDB.commit()
+        embed = discord.Embed(description = 'Marks have been successfully released!', 
+                                        color = default_color)
+        await ctx.send(embed = embed)
 
     @commands.command()
     async def release(self, ctx, arg = 'me'):
         if await isConfiguredTeacher(ctx, self.myCursor) == False:
             return
         bottomText = "Select the assignment you want to release the marks for, by typing the corresponding number."
+        def check(m):
+            return (m.content.lower() == 'yes' or m.content.lower() == 'no') and m.channel == ctx.channel and m.author == ctx.author
         if arg.strip().lower() == 'all':
             self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime, totalMarks, marksheet, marksReleased FROM assignments WHERE serverID = {0}".format(ctx.guild.id))
             allAssignments = self.myCursor.fetchall()                    # Get all assignments from the server
             selectedAssignment = await self.getAssignment(ctx, allAssignments, bottomText, 1)
             if selectedAssignment is not None:
+                embed = discord.Embed(description = "Ensure you have saved all changes to the marksheet of selected assignment before proceeding.\n\nType **Yes** to proceed or **No** to abort.", color = default_color)
+                await ctx.send(embed = embed)
+                try:
+                    msg = await self.client.wait_for('message', check=check, timeout = 120.0)
+                except asyncio.TimeoutError:
+                    return
+                if msg.content.lower() == 'no':
+                    embed = discord.Embed(description = 'Process aborted.', 
+                                        color = red)
+                    await ctx.send(embed = embed)
+                    return
                 await self.releaseScores(ctx, selectedAssignment)
         elif arg.strip().lower() == 'me' or arg.strip().lower() == 'mine':
             self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime, totalMarks, marksheet, marksReleased FROM assignments WHERE serverID = {0.guild.id} AND teacherID = {0.author.id}".format(ctx))
             myAssignments = self.myCursor.fetchall()                    # Get teacher's assignments from the server
             selectedAssignment = await self.getAssignment(ctx, myAssignments, bottomText, 2)
             if selectedAssignment is not None:
+                embed = discord.Embed(description = "Ensure you have saved all changes to the marksheet of selected assignment before proceeding.\n\nType **Yes** to proceed or **No** to abort.", color = default_color)
+                await ctx.send(embed = embed)
+                try:
+                    msg = await self.client.wait_for('message', check=check, timeout = 120.0)
+                except asyncio.TimeoutError:
+                    return
+                if msg.content.lower() == 'no':
+                    embed = discord.Embed(description = 'Process aborted.', 
+                                        color = red)
+                    await ctx.send(embed = embed)
+                    return
                 await self.releaseScores(ctx, selectedAssignment)
         else:
             embed = discord.Embed(description = 'Type `c!help release` for help with this command.', 

@@ -8,10 +8,11 @@ from variables import *
 from utilFunctions import *
 #______________________________ON EVENT_____________________________#
 class onEvents(commands.Cog):
-    def __init__(self, client, myDB, myCursor):
+    def __init__(self, client, myDB, myCursor, gc):
         self.client = client
         self.myDB = myDB
         self.myCursor = myCursor
+        self.gc = gc
         # serverInfo
         # [server, entryChannel, announcementsChannel, teacherChannel, student, teacher, students, teachers]
         # [0,      1,            2,                    3,              4,       5,       6,        7]
@@ -38,16 +39,7 @@ class onEvents(commands.Cog):
                 return
             if msg.content.lower() == 'yes':
                 await self.getPersonalDetails(member, user, dmChannel)
-                # Add new students joining the server to all assignments that are still due
-                self.myCursor.execute("SELECT assignmentID FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
-                dueAssignments = self.myCursor.fetchall()
-                for i in dueAssignments:
-                    tableName = "assgn" + str(i[0])
-                    self.myCursor.execute("SELECT studentID FROM {0} WHERE studentID = {1}".format(tableName, member.id))
-                    record = self.myCursor.fetchone()
-                    if record is None:
-                        self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
-                        self.myDB.commit()
+                self.addToExistingTables(member)
             return
             
         serverInfo = getServerInfo(self.client, member.guild.id, self.myCursor)
@@ -80,18 +72,29 @@ class onEvents(commands.Cog):
         elif reaction.emoji == '2️⃣':
             await self.getPersonalDetails(member, user, dmChannel)
             await member.add_roles(serverInfo[4])
-            
-            # Add new students joining the server to all assignments that are still due
-            self.myCursor.execute("SELECT assignmentID FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
-            dueAssignments = self.myCursor.fetchall()
-            for i in dueAssignments:
-                tableName = "assgn" + str(i[0])
-                self.myCursor.execute("SELECT studentID FROM {0} WHERE studentID = {1}".format(tableName, member.id))
-                record = self.myCursor.fetchone()
-                if record is None:
-                    self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
-                    self.myDB.commit()
+            self.addToExistingTables(member)
         await welcomeMessage.delete()
+
+    # Add new students joining the server to all assignments that are still due
+    def addToExistingTables(self, member):
+        self.myCursor.execute("SELECT assignmentID, marksheet FROM assignments WHERE deadlineOver = '0' AND serverID = {0}".format(member.guild.id))
+        dueAssignments = self.myCursor.fetchall()
+        for i in dueAssignments:
+            tableName = "assgn" + str(i[0])
+            self.myCursor.execute("SELECT studentID FROM {0} WHERE studentID = {1}".format(tableName, member.id))
+            record = self.myCursor.fetchone()
+            if record is None:
+                self.myCursor.execute("SELECT studentID FROM {0}".format(tableName, member.id))
+                allStudents = self.myCursor.fetchall()
+                self.myCursor.execute("SELECT studentTag, studentName, rollNo FROM students WHERE studentID = {0.id} AND serverID = {0.guild.id}".format(member))
+                studentRecord = self.myCursor.fetchone()
+                workbook = self.gc.open_by_key(i[1])
+                worksheet = workbook.sheet1
+                worksheet.update('A{0}'.format(len(allStudents)+2), [[len(allStudents)+1, studentRecord[0] + ' | ' + studentRecord[1], studentRecord[2]]])
+                worksheet.columns_auto_resize(0, 4)
+                self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
+        self.myDB.commit()
+
 
     async def getPersonalDetails(self, member, user, dmChannel):
         # Check if student's record in same server already exists or not

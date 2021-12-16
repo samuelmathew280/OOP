@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
-
+#_______________________IMPORTING DISCORD.PY LIBRARIES_____________________#
 import discord
+#_______________________IMPORTING OTHER LIBRARIES_____________________#
+from datetime import datetime, timedelta
 from variables import *
 import re
 

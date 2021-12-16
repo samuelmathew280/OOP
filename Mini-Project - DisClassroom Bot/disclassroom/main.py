@@ -1,5 +1,4 @@
 #_______________________IMPORTING DISCORD.PY LIBRARIES_____________________#
-from functools import reduce
 import discord
 from discord.ext import commands, tasks
 from discord.ext.commands import *
@@ -88,7 +87,7 @@ class MyClient(commands.Bot):
     async def startup(self):
         await self.wait_until_ready()
         self.add_cog(backgroundTasks.Tasks(self, myDB, myCursor))
-        self.add_cog(events.onEvents(self, myDB, myCursor))
+        self.add_cog(events.onEvents(self, myDB, myCursor, gc))
         self.add_cog(commandsTeachers.teacherCommands(self, myDB, myCursor, drive, gc))
         self.add_cog(commandsStudents.studentCommands(self, myDB, myCursor, drive))
         self.add_cog(commandsAdmin.adminCommands(self, myDB, myCursor))

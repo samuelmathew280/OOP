@@ -18,7 +18,6 @@ class Tasks(commands.Cog):
 
     @tasks.loop()
     async def reminders(self):
-        # if you don't care about keeping records of old tasks, remove this WHERE and change the UPDATE to DELETE
         self.myCursor.execute("SELECT deadlineReminder, isReminder, deadline, assignmentID, subject, title, assignmentLink FROM assignments WHERE deadlineOver = '0' AND deadline != 'NULL' ORDER BY deadlineReminder")
         next_task = self.myCursor.fetchone()
         print(next_task)
@@ -31,7 +30,7 @@ class Tasks(commands.Cog):
             # sleep until the task should be done
             await discord.utils.sleep_until(toggleTimeAndString(next_task[0]))
 
-            # do your task stuff here with `next_task`
+            # once next_task's end time has been reached
             if next_task[1] == "True":
                 print("Reminder for assignment")
                 self.myCursor.execute("UPDATE assignments SET deadlineReminder = '{0}', isReminder = 'False' WHERE assignmentID = {1}".format(next_task[2], next_task[3]))
