@@ -15,7 +15,7 @@ Once the bot is configured for the server, students will be able to
 <br />♻️ Re-submit a previously submitted assignment
 
 Teachers will be able to
-<br />:student: View a student's personal information
+<br />👨‍🎓 View a student's personal information
 <br />📝 Post an announcement/assignment
 <br />📚 Review an assignment and check all submissions by students
 <br />📋 Grade and release all marks, that will be privately sent to the students
