@@ -17,6 +17,7 @@ class onEvents(commands.Cog):
         # [server, entryChannel, announcementsChannel, teacherChannel, student, teacher, students, teachers]
         # [0,      1,            2,                    3,              4,       5,       6,        7]
 
+    # Invoked when a new member joins a server the bot is in
     @commands.Cog.listener()
     async def on_member_join(self, member):
         user = await self.client.fetch_user(member.id)
@@ -95,7 +96,7 @@ class onEvents(commands.Cog):
                 self.myCursor.execute("INSERT INTO {0} (studentName, studentID, serverID) VALUES ('{1.name}#{1.discriminator}', '{1.id}', '{2}')".format(tableName, member, member.guild.id))
         self.myDB.commit()
 
-
+    # Called when a new user joining the server requests the Student role
     async def getPersonalDetails(self, member, user, dmChannel):
         # Check if student's record in same server already exists or not
         self.myCursor.execute("SELECT studentName, rollNo, email FROM students WHERE studentID = {0} AND serverID = {1}".format(member.id, member.guild.id))
@@ -172,11 +173,11 @@ class onEvents(commands.Cog):
             except:
                 pass
 
+    # Invoked when the bot joins a new server/guild
     @commands.Cog.listener()
     async def on_guild_join(self, guild):
         self.myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID, studentRoleID, teacherRoleID, configured FROM servers WHERE serverID = {0}".format(guild.id))
         record = self.myCursor.fetchone()
-        print(record)
         if record is not None:
             channels = []
             for i in record[:3]:
@@ -195,7 +196,6 @@ class onEvents(commands.Cog):
             await self.client.wait_for('message', check=check)
 
         record = await checkIfConfigured(self.client, guild, self.myDB, self.myCursor)
-        print(record)
         if record == False:
             # New server, no existing record, hence all channels/roles need to be configured
             embed1 = discord.Embed(description = "Kindly configure the bot for your server using the `c!config` command, before you can use all other commands.", color = default_color)
@@ -209,6 +209,7 @@ class onEvents(commands.Cog):
                 embed2 = discord.Embed(description = "Kindly re-configure the bot for your server using the `c!config` command in the server, before you can use all other commands.\n\nMake sure the bot has access to the channel(s) and can write in it.", color = default_color)
                 await self.sendMessageToNewGuild(guild, embed1, embed2)
 
+    # Invoked when a channel in a server/guild is deleted
     @commands.Cog.listener()
     async def on_guild_channel_delete(self, channel):
         self.myCursor.execute("SELECT welcomeChannelID, announcementsID, staffRoomChannelID FROM servers WHERE serverID = {0}".format(channel.guild.id))
@@ -222,6 +223,7 @@ class onEvents(commands.Cog):
                 self.myDB.commit()
             k+=1
 
+    # Invoked when a role in a server/guild is deleted
     @commands.Cog.listener()
     async def on_guild_role_delete(self, role):
         self.myCursor.execute("SELECT studentRoleID, teacherRoleID FROM servers WHERE serverID = {0}".format(role.guild.id))

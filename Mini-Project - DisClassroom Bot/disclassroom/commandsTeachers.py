@@ -23,9 +23,14 @@ class teacherCommands(commands.Cog):
         # [server, entryChannel, announcementsChannel, teacherChannel, studentRole, teacherRole, students, teachers]
         # [0,      1,            2,                    3,              4,           5,           6,        7]
 
+    # Command is used to retrieve information about a Student in the server
     @commands.command(name='info', aliases = ['i'])
     async def info(self, ctx, arg):
-        if await isConfiguredTeacher(ctx, self.myCursor) == False:
+        check = await isConfiguredStudentOrTeacher(ctx, self.myCursor)
+        # check = [DM, Teacher, Student, TeachersChannel] or False, if not configured
+        if check == False:
+            return
+        elif check[0] == True or check[1] == False or check[3] == False:
             return
         serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         ID = re.sub("[^0-9]", "", arg)
@@ -50,6 +55,7 @@ class teacherCommands(commands.Cog):
         embed.add_field(name="ID", value=str(record[2]), inline=True)
         embed.add_field(name="Roll number", value=record[4], inline=True)
         embed.add_field(name="Email", value=record[5], inline=True)
+        embed.set_footer(text="Requested by {0.name}#{0.discriminator} | {0.id}".format(ctx.author), icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
 
     # Utility function to add assignment to database when "c!post assignment" is invoked
@@ -61,7 +67,6 @@ class teacherCommands(commands.Cog):
             deadlineObj = toggleTimeAndString(deadline)
             localTime = datetime.now(IST)
             remainingTime = rdelta.relativedelta(deadlineObj, localTime)
-            print(deadlineObj, localTime, remainingTime)
             if remainingTime.minutes<0 or remainingTime.seconds<0 or remainingTime.hours<0:
                 embed= discord.Embed(description = 'Invalid input. Assignment deadline should not be before current time.', color = red)
                 await ctx.send(embed = embed)
@@ -75,12 +80,18 @@ class teacherCommands(commands.Cog):
             else:
                 isReminder = False
                 deadlineReminder = deadlineObj
-            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, deadline, deadlineReminder, isReminder, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'True', '{3}', '{4}', '{5}', '{6}', {7})".format(ctx, subject, title, toggleTimeAndString(deadlineObj), toggleTimeAndString(deadlineReminder), isReminder, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
+            if marks is not None:
+                self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, deadline, deadlineReminder, isReminder, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'True', '{3}', '{4}', '{5}', '{6}', {7})".format(ctx, subject, title, toggleTimeAndString(deadlineObj), toggleTimeAndString(deadlineReminder), isReminder, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
+            else:
+                self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, deadline, deadlineReminder, isReminder, postTime) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'True', '{3}', '{4}', '{5}', '{6}')".format(ctx, subject, title, toggleTimeAndString(deadlineObj), toggleTimeAndString(deadlineReminder), isReminder, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             self.myDB.commit()
             self.myCursor.execute("SELECT assignmentID FROM assignments WHERE serverID = '{0}' AND subject = '{1}' AND postTime = '{2}'".format(ctx.guild.id, subject, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             assignmentID = self.myCursor.fetchone()[0]
         else:
-            self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'False', '{3}', {4})".format(ctx, subject, title, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
+            if marks is not None:
+                self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, postTime, totalMarks) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'False', '{3}', {4})".format(ctx, subject, title, toggleTimeAndString(ctx.message.created_at.astimezone(IST)), marks))
+            else:
+                self.myCursor.execute("INSERT INTO assignments (serverID, subject, title, teacherID, hasDeadline, postTime) VALUES ('{0.guild.id}', '{1}', '{2}', '{0.author.id}', 'False', '{3}')".format(ctx, subject, title, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             self.myDB.commit()
             self.myCursor.execute("SELECT assignmentID FROM assignments WHERE serverID = '{0}' AND subject = '{1}' AND postTime = '{2}'".format(ctx.guild.id, subject, toggleTimeAndString(ctx.message.created_at.astimezone(IST))))
             assignmentID = self.myCursor.fetchone()[0]
@@ -116,15 +127,19 @@ class teacherCommands(commands.Cog):
 
     # Command to post announcement, quiz, or assignment
     @commands.command()
-    async def post(self, ctx, arg1, *, arg2):
-        if await isConfiguredTeacher(ctx, self.myCursor) == False:
+    async def post(self, ctx, arg1 = '', *, arg2 = ''):
+        check = await isConfiguredStudentOrTeacher(ctx, self.myCursor)
+        # check = [DM, Teacher, Student, TeachersChannel] or False, if not configured
+        if check == False:
+            return
+        elif check[0] == True or check[1] == False or check[3] == False:
             return
         serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         member = ctx.guild.get_member(ctx.author.id)
         #####################################################
         ##                   ANNOUNCEMENT                  ##
         #####################################################
-        if arg1.lower().strip() == 'announcement':
+        if arg1.lower().strip() == 'announcement' or arg1.lower().strip() == 'announce':
             # Obtaining the included parameters
             arg2 = ' ' + arg2.strip()
             if arg2.count(' -s ')<0 or arg2.count(' -d ')<0:
@@ -135,13 +150,10 @@ class teacherCommands(commands.Cog):
             params = ''
             for i in paramsList:
                 params += i[2]
-            print(arg2)
             # Obtaining the values for the present parameters
             myRegex = ' [-][' + params + '] '
             embedParts = re.split(myRegex, arg2)
             embedParts = embedParts[1:]
-            print(embedParts)
-            print(params)
             # Building embed using the parameters and their values
             embed = discord.Embed(color = member.roles[-1].color)
             k = 0
@@ -156,15 +168,25 @@ class teacherCommands(commands.Cog):
                 if i == 'd':
                     embed.description = '{0}'.format(embedParts[k])
                 if i == 'l':
+                    embedParts[k] = embedParts[k].lower()
+                    if embedParts[k].startswith('https://') == False and embedParts[k].startswith('http://') == False:
+                        embedParts[k] = "https://" + embedParts[k]
                     embed.add_field(name = 'Link', value = '[Click here]({0})'.format(embedParts[k]), inline = False)
                 k+=1
             if ctx.message.attachments != None and ctx.message.attachments != []:
                 attach = ''
+                imageSelected = False
                 for i in ctx.message.attachments:
-                    attach+='[{0}]({1})\n'.format(i.filename, i.url)
-                #attach -= '\n'
-                embed.add_field(name = 'Attachments', value = attach, inline = False)
-            await serverInfo[2].send(embed = embed)
+                    if imageSelected == False and i.content_type.startswith('image') == True:
+                        embed.set_image(url = i.url)
+                        imageSelected = True
+                    else:
+                        attach+='[{0}]({1})\n'.format(i.filename, i.url)
+                if attach != '':
+                    embed.add_field(name = 'Attachments', value = attach, inline = False)
+            announcement = await serverInfo[2].send(embed = embed)
+            embed = discord.Embed(description = '[Announcement posted!]({0})'.format(announcement.jump_url), color = default_color)
+            await serverInfo[3].send(embed = embed)
         #####################################################
         ##                 ASSIGNMENT/QUIZ                 ##
         #####################################################
@@ -179,18 +201,16 @@ class teacherCommands(commands.Cog):
             params = ''
             for i in paramsList:
                 params += i[2]
-            print(arg2)
             # Obtaining the values for the present parameters
             myRegex = ' [-][' + params + '] '
             embedParts = re.split(myRegex, arg2)
             embedParts = embedParts[1:]
-            print(embedParts)
-            print(params)
             # Building embed using the parameters and their values
             embed = discord.Embed(color = member.roles[-1].color)
             k = 0
             embed.add_field(name = 'Professor', value = '{0}'.format(ctx.author.mention), inline = True)
             deadline = None
+            marks = None
             for i in params:
                 if i == 's':
                     subject = embedParts[k]
@@ -203,6 +223,9 @@ class teacherCommands(commands.Cog):
                 if i == 'd':
                     embed.description = '{0}'.format(embedParts[k])
                 if i == 'l':
+                    embedParts[k] = embedParts[k].lower()
+                    if embedParts[k].startswith('https://') == False and embedParts[k].startswith('http://') == False:
+                        embedParts[k] = "https://" + embedParts[k]
                     embed.add_field(name = 'Link', value = '[Click here]({0})'.format(embedParts[k]), inline = False)
                 if i == 'm':
                     try:
@@ -218,12 +241,16 @@ class teacherCommands(commands.Cog):
                     embed.add_field(name = 'Deadline', value = '{0}'.format(beautifyTimeString(embedParts[k])), inline = False)
                 k+=1
             if ctx.message.attachments != None and ctx.message.attachments != []:
-                print("Attachment present", ctx.message.attachments)
                 attach = ''
+                imageSelected = False
                 for i in ctx.message.attachments:
-                    attach+='[{0}]({1})\n'.format(i.filename, i.url)
-                #attach -= '\n'
-                embed.add_field(name = 'Attachments', value = attach, inline = False)
+                    if imageSelected == False and i.content_type.startswith('image') == True:
+                        embed.set_image(url = i.url)
+                        imageSelected = True
+                    else:
+                        attach+='[{0}]({1})\n'.format(i.filename, i.url)
+                if attach != '':
+                    embed.add_field(name = 'Attachments', value = attach, inline = False)
             assgnPosted = await self.addAssignment(subject, title, marks, ctx, deadline, serverInfo)
             if assgnPosted != False:
                 if arg1.lower().strip() == 'assignment':
@@ -233,12 +260,20 @@ class teacherCommands(commands.Cog):
                 sqlUpdate = "UPDATE assignments SET assignmentLink = %s WHERE assignmentID = %s"
                 self.myCursor.execute(sqlUpdate, (message.jump_url, assgnPosted))
                 self.myDB.commit()
+                embed = discord.Embed(description = '[Assignment posted!]({0})'.format(message.jump_url), color = default_color)
+                await serverInfo[3].send(embed = embed)
                 # If assignment has deadline, restart reminder background task
                 if self.client.cogs['Tasks'].reminders.is_running():
                     self.client.cogs['Tasks'].reminders.restart()
                 else:
                     self.client.cogs['Tasks'].reminders.start()
+        else:
+            embed = discord.Embed(description = 'Type `c!help post` for help with this command.', 
+                                        color = default_color)
+            await ctx.send(embed = embed)
 
+    # Function that takes a list of assignments as input, asks the user to select one based on the number, and returns the selected assignment out of the list
+    # Other arguments like bottomText and option are just to modify the text appearing in the embed as per our needs
     async def getAssignment(self, ctx, assignmentList, bottomText, option):
         embed = discord.Embed(description = '**#  |  Subject  |      Title      |  Teacher  |  Marks  |  Deadline**\n', 
                                 color = default_color)
@@ -275,6 +310,7 @@ class teacherCommands(commands.Cog):
         selectedAssignment = assignmentList[choice-1]
         return selectedAssignment
 
+    # Utility function to post all the details of an assignment. This includes an overview of the assignment, its marksheet and list of students along with their submissions
     async def postAssignmentDetails(self, ctx, assignment):      # assignment = [assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver, postTime, totalMarks, marksheet, marksReleased]
         tableName = "assgn" + str(assignment[0])
         embed1 = discord.Embed(title = ':pencil: Assignment details',
@@ -319,6 +355,7 @@ class teacherCommands(commands.Cog):
             embed1.add_field(name = "Marks released", value = ":white_check_mark:")
         else:
             embed1.add_field(name = "Marks released", value = ":x:")
+        embed1.set_footer(text="Requested by {0.name}#{0.discriminator} | {0.id}".format(ctx.author), icon_url=ctx.author.avatar_url)
         await ctx.send(embed = embed1)
         embed2 = discord.Embed(title = ":bar_chart: Marksheet", description = "[__Click here__]({0})".format("https://docs.google.com/spreadsheets/d/"+assignment[10]+"/edit#gid=0"), color = default_color)
         await ctx.send(embed = embed2)
@@ -389,9 +426,15 @@ class teacherCommands(commands.Cog):
             embed3.add_field(name = "Submissions", value = submissionString, inline = False)
         await ctx.send(embed = embed3)
 
+    # Command for teachers to select an assignment and review its details.
+    # This provides an overview of the assignment, the submissions, and the marksheet.
     @commands.command()
     async def review(self, ctx, arg = 'me'):
-        if await isConfiguredTeacher(ctx, self.myCursor) == False:
+        check = await isConfiguredStudentOrTeacher(ctx, self.myCursor)
+        # check = [DM, Teacher, Student, TeachersChannel] or False, if not configured
+        if check == False:
+            return
+        elif check[0] == True or check[1] == False or check[3] == False:
             return
         serverInfo = getServerInfo(self.client, ctx.guild.id, self.myCursor)
         bottomText = "Select the assignment you want to view in detail, by typing the corresponding number."
@@ -413,6 +456,8 @@ class teacherCommands(commands.Cog):
                                         color = default_color)
             await ctx.send(embed = embed)
 
+    # Utility function to release the scores for a selected assignment. Marks are read from the Google Sheet attached to the assignment and updates them in the database and sends them out to all students, whose scores had a change.
+    # The first time, all students receive their scores. The second time, only if there was a change in marks from the previous time, the scores are updated.
     async def releaseScores(self, ctx, selectedAssignment):
         tableName = "assgn" + str(selectedAssignment[0])
         workbook = self.gc.open_by_key(selectedAssignment[10])
@@ -467,9 +512,14 @@ class teacherCommands(commands.Cog):
                                         color = default_color)
         await ctx.send(embed = embed)
 
+    # Function to release scores to all students for an assignment.
     @commands.command()
     async def release(self, ctx, arg = 'me'):
-        if await isConfiguredTeacher(ctx, self.myCursor) == False:
+        check = await isConfiguredStudentOrTeacher(ctx, self.myCursor)
+        # check = [DM, Teacher, Student, TeachersChannel] or False, if not configured
+        if check == False:
+            return
+        elif check[0] == True or check[1] == False or check[3] == False:
             return
         bottomText = "Select the assignment you want to release the marks for, by typing the corresponding number."
         def check(m):

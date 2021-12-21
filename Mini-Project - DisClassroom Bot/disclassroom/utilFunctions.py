@@ -44,28 +44,51 @@ def getServerInfo(client, guildID, myCursor):
     serverInfo = [server, welcomeChannel, announcementChannel, teachersChannel, student, teacher, students, teachers]
     return serverInfo
 
-# Function to check if server is configured and command comes from a teacher
-async def isConfiguredTeacher(ctx, myCursor):
-    myCursor.execute("SELECT configured, teacherRoleID FROM servers WHERE serverID = {0}".format(ctx.guild.id))
-    record = myCursor.fetchone()
-    if record is None:
-        return False
-    # Check if user who used the command is a teacher
-    teacher = False
-    for i in ctx.author.roles:
-        if i.id == int(record[1]):
-            teacher = True
-    # If command author is a student, return False regardless
-    if teacher == False:
-        return False
-    # If command author is a teacher, but server is not configured
-    if teacher == True and record[0] == '0':
-        embed = discord.Embed(description = 'Server is not configured. Kindly use `c!config` and do that before you can use the other commands.', color = default_color)
-        await ctx.send(embed = embed)
-        return False
-    # If command author is a teacher, and server is configured
-    if teacher == True and record[0] != '0':
-        return True
+# Function checks if
+#   - Server is configured. If not, returns False
+#   - Command is in DMs
+#   - Command is from Teacher or Student. If command is in DMs, only checks if it is from Student or not
+#   - Command is invoked in teacher's private channel
+#   Function is used for all teacher/admin commands.
+# commandChecks = [DM, Teacher, Student, TeachersChannel]
+async def isConfiguredStudentOrTeacher(ctx, myCursor):
+    # Initially all checks are set to False
+    commandChecks = [False, False, False, False]
+    # Anyone using the command in DMs, we're only concerned if they're a student in a configured server
+    if isinstance(ctx.author, discord.User):
+        commandChecks[0] = True
+        mutual_servers = ctx.author.mutual_guilds
+        for i in mutual_servers:
+            myCursor.execute("SELECT configured, studentRoleID FROM servers WHERE serverID = {0}".format(i.id))
+            record = myCursor.fetchone()
+            if record is None:
+                continue
+            if record[0] == '0':
+                continue
+            member = await i.fetch_member(ctx.author.id)
+            for j in member.roles:
+                if j.id == int(record[1]):
+                    commandChecks[2] = True
+                    break
+    elif isinstance(ctx.author, discord.Member):
+        myCursor.execute("SELECT configured, teacherRoleID, studentRoleID, staffRoomChannelID FROM servers WHERE serverID = {0}".format(ctx.guild.id))
+        record = myCursor.fetchone()
+        if record is None:
+            return False
+        if ctx.channel.id == record[3]:
+            commandChecks[3] = True
+        # Check if user who used the command is a teacher or student
+        for i in ctx.author.roles:
+            if i.id == int(record[1]):
+                commandChecks[1] = True
+            if i.id == int(record[2]):
+                commandChecks[2] = True
+        # If command author is a teacher, but server is not configured
+        if record[0] == '0':
+            embed = discord.Embed(description = 'Server is not configured. Kindly use `c!config` (or request an admin to) and configure it before you can use the other commands.', color = default_color)
+            await ctx.send(embed = embed)
+            return False
+    return commandChecks
 
 # Function to thoroughly re-check if server is configured. Adds the server to the database and returns False if the server does not exist in the database (table: 'servers') OR returns the updated entry of the server in the database, after checking if every ID present in valid or not.
 # Do not call this function frequently, as it makes several API calls. Only use when bot joins a server/c!config is used.

@@ -45,6 +45,7 @@ class studentCommands(commands.Cog):
         else:
             return False
 
+    # Function to pull pending assignments or already submitted assignments, from all mutual servers, select one, and to submit/resubmit it.
     async def submitAssignment(self, ctx, mutual_servers, option):                  # Option 1 = Submit, Option 2 = Resubmit
         format_strings = ','.join(['%s'] * len(mutual_servers))                 # To create a string "%s, %s, %s ...." for the number of mutual servers
         self.myCursor.execute("SELECT assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline FROM assignments WHERE serverID IN ({0}) ORDER BY deadline".format(format_strings), mutual_servers)
@@ -126,7 +127,7 @@ class studentCommands(commands.Cog):
                     fileName = re.sub('_', ' ', i.filename)
                     filenames.append(fileName)
                     # Uploading to Google Drive and obtaining ID
-                    path = "E:\Downloads"
+                    path = "/home/sam/OOP/Mini-Project - DisClassroom Bot"
                     await i.save(path + '\\' + i.filename)
                     file = self.drive.CreateFile({"title" : fileName,
                                                   "parents": [{"id": folder_id}]})
@@ -194,8 +195,9 @@ class studentCommands(commands.Cog):
             return
         await self.submitAssignment(ctx, mutual_servers, 2)
 
+    # Command to view all/pending assignments
     @commands.command()
-    async def view(self, ctx, arg2 = ''):
+    async def view(self, ctx, arg2 = 'all'):
         if arg2.strip().lower() == 'all' or arg2.strip().lower() == 'pending':
             if ctx.guild != None:                                   # Command should only work in DMs
                 return
@@ -245,7 +247,7 @@ class studentCommands(commands.Cog):
                                 #  = [assignmentID, serverID, subject, title, teacherID, assignmentLink, deadline, deadlineOver]
                 assignmentID = selectedAssignment[0]
                 tableName = "assgn" + str(assignmentID)
-                self.myCursor.execute("SELECT submissions, submissionTime, submitted, submittedLate FROM {0} WHERE studentID = {1}".format(tableName, ctx.author.id))
+                self.myCursor.execute("SELECT submissions, submissionTime, submitted, submittedLate, marks FROM {0} WHERE studentID = {1}".format(tableName, ctx.author.id))
                 record = self.myCursor.fetchone()
                 embed = discord.Embed(title = ':pencil: Assignment details',
                                       description = '**[{0}]({1})**'.format(selectedAssignment[3], selectedAssignment[5]))
@@ -286,7 +288,11 @@ class studentCommands(commands.Cog):
                         file = self.drive.CreateFile({"id": i})
                         file.FetchMetadata(fields='id,title')
                         submissionString += ":small_orange_diamond: [{0}]({1})\n".format(file['title'], "https://drive.google.com/file/d/" + i + "/view?usp=sharing")
-                    embed.add_field(name = "Submissions", value = submissionString)
+                    embed.add_field(name = "Submissions", value = submissionString, inline = False)
+                else:
+                    embed.add_field(name = "Submissions", value = '`<None>`', inline = True)
+                if record[4] is not None:
+                    embed.add_field(name = "Marks", value = str(record[4]))
                 timeChecks = ''
                 if submitted == False:
                     timeChecks += ":x: Submitted"
