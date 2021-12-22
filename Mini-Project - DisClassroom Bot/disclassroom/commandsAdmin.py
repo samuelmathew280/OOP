@@ -2,6 +2,7 @@
 import discord
 from discord.ext import commands
 #_______________________IMPORTING OTHER LIBRARIES_____________________#
+import asyncio
 from datetime import datetime, timedelta
 from datetime import date
 from dateutil import relativedelta as rdelta
@@ -79,7 +80,10 @@ class adminCommands(commands.Cog):
                 return int(m.content) in range(0, 6) and m.channel == ctx.channel
             except:
                 return
-        msg = await self.client.wait_for('message', check=check)
+        try:
+            msg = await self.client.wait_for('message', check=check, timeout = 300.0)     # Accept input to select which assignment to view
+        except asyncio.TimeoutError:
+            return
         option = int(msg.content)
         if option == 0:
             embed = discord.Embed(description = "Configuration commenced.", color = default_color)

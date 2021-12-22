@@ -1,4 +1,5 @@
 #_______________________IMPORTING DISCORD.PY LIBRARIES_____________________#
+from typing_extensions import _AnnotatedAlias
 import discord
 from discord.ext import commands
 #_______________________IMPORTING OTHER LIBRARIES_____________________#
@@ -92,7 +93,10 @@ class studentCommands(commands.Cog):
                 return int(m.content) in range(1, len(assignmentOptions)+1) and m.channel == ctx.channel
             except:
                 return
-        msg = await self.client.wait_for('message', check=check)     # Accept input to select which assignment to submit
+        try:
+            msg = await self.client.wait_for('message', check=check, timeout = 300.0)     # Accept input to select which assignment to submit
+        except asyncio.TimeoutError:
+            return
         choice = int(msg.content)
         assgnToSubmit = assignmentOptions[choice-1]
         if option == 2:
@@ -239,7 +243,7 @@ class studentCommands(commands.Cog):
                     except:
                         return
                 try:
-                    msg = await self.client.wait_for('message', check=check, timeout = 60.0)     # Accept input to select which assignment to view
+                    msg = await self.client.wait_for('message', check=check, timeout = 100.0)     # Accept input to select which assignment to view
                 except asyncio.TimeoutError:
                     return
                 choice = int(msg.content)

@@ -108,7 +108,10 @@ class teacherCommands(commands.Cog):
                         "additionalRoles" : ['commenter']})
         workbook = self.gc.open_by_key(f['id'])
         worksheet = workbook.sheet1
-        worksheetTable = [['Sr. no.', 'Tag | Name', 'Roll no.', 'Marks']]
+        if marks is not None:
+            worksheetTable = [['Sr. no.', 'Tag | Name', 'Roll no.', 'Marks']]
+        else:
+            worksheetTable = [['Sr. no.', 'Tag | Name', 'Roll no.', 'Marks ({0})'.format(marks)]]
         tableName = "assgn" + str(assignmentID)
         self.myCursor.execute("CREATE TABLE {0}(ID INT AUTO_INCREMENT PRIMARY KEY, studentName VARCHAR(100), studentID BIGINT UNSIGNED, serverID BIGINT UNSIGNED, submissions VARCHAR(1000), submissionTime VARCHAR(255), submitted VARCHAR(100) DEFAULT FALSE, submittedLate VARCHAR(100), marks INT)".format(tableName))
         k = 1

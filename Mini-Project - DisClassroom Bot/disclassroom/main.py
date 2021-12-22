@@ -98,6 +98,7 @@ class MyClient(commands.Bot):
         self.add_cog(commandsTeachers.teacherCommands(self, myDB, myCursor, drive, gc))
         self.add_cog(commandsStudents.studentCommands(self, myDB, myCursor, drive))
         self.add_cog(commandsAdmin.adminCommands(self, myDB, myCursor))
+        await self.change_presence(status = discord.Status.online, activity=discord.Activity(type=discord.ActivityType.watching, name="you type c!help for help"))
 
     # Function to unload and then re-load cogs, to instance variables for cog objects
     def refreshCogs(self, myDB, myCursor):
